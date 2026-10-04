@@ -100,7 +100,7 @@ defineExpose({ openCheckout })
               <div class="space-y-4">
                 <div
                   v-for="item in cartStore.items"
-                  :key="item.base_sku"
+                  :key="item.variant_id"
                   class="flex items-center gap-4 p-4 bg-gray-50 dark:bg-slate-800/40 rounded-3xl border border-gray-100 dark:border-dark-border group transition-all"
                 >
                   <div
@@ -125,7 +125,7 @@ defineExpose({ openCheckout })
                       >
                         <button
                           class="p-1 text-gray-400 hover:text-red-500 transition active:scale-95"
-                          @click="cartStore.updateQuantity(item.base_sku, -1)"
+                          @click="cartStore.updateQuantity(item.variant_id, -1)"
                         >
                           <MinusIcon class="w-3 h-3" />
                         </button>
@@ -134,14 +134,14 @@ defineExpose({ openCheckout })
                         }}</span>
                         <button
                           class="p-1 text-gray-400 hover:text-teal-500 transition active:scale-95"
-                          @click="cartStore.updateQuantity(item.base_sku, 1)"
+                          @click="cartStore.updateQuantity(item.variant_id, 1)"
                         >
                           <PlusIcon class="w-3 h-3" />
                         </button>
                       </div>
                       <button
                         class="text-[10px] font-bold text-red-500 hover:underline uppercase tracking-wider"
-                        @click="cartStore.removeFromCart(item.base_sku)"
+                        @click="cartStore.removeFromCart(item.variant_id)"
                       >
                         Remove
                       </button>

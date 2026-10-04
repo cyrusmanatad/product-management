@@ -45,6 +45,8 @@ class ProductResource extends JsonResource
             'title' => $this->title,
             'description' => $this->description,
             'variants' => $variants,
+            'images' => ProductImageResource::collection($this->images),
+            'primary_image_url' => $this->images->first()?->publicUrl(),
             'category_id' => $this->category->id ?? 0,
             'category' => $this->category?->name ?? 'Uncategorized',
             'price' => $firstVariant?->price ?? 0,

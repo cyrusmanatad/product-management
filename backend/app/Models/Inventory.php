@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToVendor;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Inventory extends Model
 {
+    use BelongsToVendor;
     use HasFactory;
 
     protected $fillable = [

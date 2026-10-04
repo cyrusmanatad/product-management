@@ -1,5 +1,8 @@
 # BACKEND.md — Laravel API
 
+Current tenancy routes and security rules are in [API.md](./API.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [TENANCY.md](./TENANCY.md). Business requests now require an explicit vendor/store URL; examples below describe the original modules.
+
+
 Backend documentation for `backend/`. See [ARCHITECTURE.md](./ARCHITECTURE.md) for system context and [API.md](./API.md) for endpoints.
 
 ---

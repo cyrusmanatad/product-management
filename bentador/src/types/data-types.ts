@@ -34,6 +34,13 @@ export interface VariantInput {
   attributes: Record<string, string>
 }
 
+export interface ProductImage {
+  id: number
+  url: string
+  is_primary: boolean
+  sort_order: number
+}
+
 export interface Product {
   id: number
   base_sku: string
@@ -53,6 +60,8 @@ export interface Product {
   status: ProductStatus
   status_label: ProductStatusLabel
   createdAt: string
+  images?: ProductImage[]
+  primary_image_url?: string | null
   icon?: string
   options?: ProductOption[]
   variants: VariantInput[]
@@ -60,6 +69,8 @@ export interface Product {
 
 export type ProductForm = Omit<
   Product,
+  | 'images'
+  | 'primary_image_url'
   | 'id'
   | 'price_humanize'
   | 'sp_humanize'

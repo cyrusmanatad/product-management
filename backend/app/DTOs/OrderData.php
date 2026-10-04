@@ -9,9 +9,9 @@ class OrderData
     public function __construct(
         public readonly int $user_id,
         public readonly string $currency,
-        public readonly float $discount,
-        public readonly float $tax,
-        public readonly float $shipping_fee,
+        public readonly string|int|float $discount,
+        public readonly string|int|float $tax,
+        public readonly string|int|float $shipping_fee,
         public readonly ?string $payment_method,
         public readonly ?string $shipping_method,
         public readonly ?string $notes,
@@ -26,9 +26,9 @@ class OrderData
             discount: $request['discount'] ?? 0,
             tax: $request['tax'] ?? 0,
             shipping_fee: $request['shipping_fee'] ?? 0,
-            payment_method: $request['payment_method'],
-            shipping_method: $request['shipping_method'],
-            notes: $request['notes'],
+            payment_method: $request['payment_method'] ?? null,
+            shipping_method: $request['shipping_method'] ?? null,
+            notes: $request['notes'] ?? null,
             items: collect($request['items'])
                 ->map(fn ($item) => OrderItemData::fromArray($item)),
         );

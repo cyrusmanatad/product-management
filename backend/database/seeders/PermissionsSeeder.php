@@ -3,7 +3,9 @@
 namespace Database\Seeders;
 
 use App\Models\User;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Spatie\Permission\Models\Permission;
@@ -55,33 +57,33 @@ class PermissionsSeeder extends Seeder
         }
 
         // Access to own inbox, own customers, own products
-        // $role1 = Role::create(['name' => 'vendor', 'guard_name' => $guardName]);
+        // $role1 = Role::create(['name' => 'vendor', 'guard_name' => $guardName, 'vendor_id' => app(\App\Tenancy\TenantContext::class)->id()]);
         // $role1->givePermissionTo(['create products', 'view products', 'edit own products', 'delete own products', 'publish own products', 'unpublish own products']);
 
         // Access to inbox, customers, products
         $role1 = Role::firstOrCreate(
-            ['name' => 'Support', 'guard_name' => $guardName],
+            ['name' => 'Support', 'guard_name' => $guardName, 'vendor_id' => app(TenantContext::class)->id()],
             ['desc' => 'Support staff'],
         );
         $role1->syncPermissions(['view products', 'view customers', 'view orders']);
 
         // Manage products and stock
         $role2 = Role::firstOrCreate(
-            ['name' => 'Inventory Staff', 'guard_name' => $guardName],
+            ['name' => 'Inventory Staff', 'guard_name' => $guardName, 'vendor_id' => app(TenantContext::class)->id()],
             ['desc' => 'Inventory staff'],
         );
         $role2->syncPermissions(['create products', 'view products', 'edit products', 'delete products']);
 
         // Can manage shop items and orders
         $role3 = Role::firstOrCreate(
-            ['name' => User::ROLE_ADMIN, 'guard_name' => $guardName],
+            ['name' => User::ROLE_ADMIN, 'guard_name' => $guardName, 'vendor_id' => app(TenantContext::class)->id()],
             ['desc' => 'System administrator'],
         );
         $role3->syncPermissions(['create products', 'view products', 'edit products', 'delete products', 'create orders', 'view orders', 'edit orders', 'delete orders']);
 
         // Full system access
         $role4 = Role::firstOrCreate(
-            ['name' => User::ROLE_SUPER_ADMIN, 'guard_name' => $guardName],
+            ['name' => 'Owner', 'guard_name' => $guardName, 'vendor_id' => app(TenantContext::class)->id()],
             ['desc' => 'Super administrator'],
         );
         $role4->syncPermissions(Permission::all());
@@ -105,6 +107,10 @@ class PermissionsSeeder extends Seeder
             ],
         );
 
+        if (Hash::check('Password@1234', $user->password)) {
+            $user->forceFill(['must_reset_password' => true])->save();
+        }
+        DB::table('vendor_memberships')->updateOrInsert(['vendor_id' => app(TenantContext::class)->id(), 'user_id' => $user->id], ['is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
         if (! $user->hasRole($role)) {
             $user->assignRole($role);
         }

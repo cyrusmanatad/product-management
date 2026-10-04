@@ -5,6 +5,7 @@ export default {
 </script>
 
 <script setup lang="ts">
+import { useTenantStore } from '@/stores/tenant'
 import { computed, ref } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { useProductStore } from '@/stores/products'
@@ -26,6 +27,7 @@ import {
 } from '@heroicons/vue/24/outline'
 import { useAuthStore } from '@/stores/auth'
 
+const tenant = useTenantStore()
 const uiStore = useUiStore()
 const productStore = useProductStore()
 const auth = useAuthStore()
@@ -76,7 +78,7 @@ const handleLogout = () => {
         Main Menu
       </p>
       <router-link
-        to="/analytics"
+        :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/analytics`"
         class="flex items-center gap-3 min-h-11 px-3 py-2 text-gray-500 dark:text-slate-400 hover:bg-gray-50 dark:hover:bg-slate-800/50 rounded-lg text-sm transition"
         active-class="bg-gray-50 dark:bg-slate-800/50 text-teal-600 dark:text-teal-400"
       >
@@ -105,25 +107,25 @@ const handleLogout = () => {
           class="pl-10 space-y-1 mt-1 border-l-2 border-teal-500 dark:border-dark-border ml-5"
         >
           <router-link
-            to="/products"
+            :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/products`"
             class="flex items-center min-h-11 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
             active-class="text-teal-600 dark:text-teal-400 font-bold"
             >Products</router-link
           >
           <router-link
-            to="/order-entry"
+            :to="`/stores/${tenant.store?.slug}`"
             class="flex items-center min-h-11 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
             active-class="text-teal-600 dark:text-teal-400 font-bold"
             >Order Entry</router-link
           >
           <router-link
-            to="/orders"
+            :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/orders`"
             class="flex items-center min-h-11 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
             active-class="text-teal-600 dark:text-teal-400 font-bold"
             >Sales Transactions</router-link
           >
           <router-link
-            to="/customers"
+            :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/customers`"
             class="flex items-center min-h-11 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
             active-class="text-teal-600 dark:text-teal-400 font-bold"
             >Customers</router-link
@@ -135,14 +137,14 @@ const handleLogout = () => {
         Shop Management
       </p>
       <router-link
-        to="/analytics"
+        :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/analytics`"
         class="flex items-center gap-3 min-h-11 px-3 py-2 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white rounded-lg text-sm transition"
         active-class="text-teal-600 dark:text-teal-400 font-bold"
       >
         <ChartBarIcon class="w-4 h-4" /> Analytics
       </router-link>
       <router-link
-        to="/inbox"
+        to="/vendors"
         class="flex items-center gap-3 min-h-11 px-3 py-2 text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white rounded-lg text-sm transition"
         active-class="text-teal-600 dark:text-teal-400 font-bold"
       >
@@ -173,13 +175,13 @@ const handleLogout = () => {
           class="pl-10 space-y-1 mt-1 border-l-2 border-teal-500 dark:border-dark-border ml-5"
         >
           <router-link
-            to="/users"
+            :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/users`"
             class="flex items-center min-h-11 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
             active-class="text-teal-600 dark:text-teal-400 font-bold"
             >Users</router-link
           >
           <router-link
-            to="/roles-permission"
+            :to="`/vendors/${encodeURIComponent(tenant.activeVendorSlug)}/roles-permission`"
             class="flex items-center min-h-11 py-2 text-sm text-gray-500 dark:text-slate-400 hover:text-gray-900 dark:hover:text-white transition"
             active-class="text-teal-600 dark:text-teal-400 font-bold"
             >Roles & Permission</router-link

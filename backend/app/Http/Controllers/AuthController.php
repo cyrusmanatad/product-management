@@ -23,9 +23,14 @@ class AuthController extends Controller
             'password' => 'required|string',
         ]);
 
-        $credentials = $request->only('email', 'password');
+        $credentials = [...$request->only('email', 'password'), 'is_active' => true, 'must_reset_password' => false];
 
         $token = Auth::attempt($credentials);
+
+        if ($token && Auth::user()->must_reset_password) {
+            Auth::logout();
+            $token = false;
+        }
 
         if (! $token) {
             return response()->json([
@@ -51,7 +56,7 @@ class AuthController extends Controller
 
         $user = User::create([
             'name' => $request->name,
-            'email' => $request->email,
+            'email' => strtolower($request->email),
             'password' => Hash::make($request->password),
         ]);
 
@@ -114,6 +119,7 @@ class AuthController extends Controller
                 'access_token' => $token,
                 'token_type' => 'bearer',
                 'expires_in' => auth()->factory()->getTTL() * 60,
+                'must_reset_password' => (bool) auth()->user()?->must_reset_password,
             ],
         ], $statusCode);
     }

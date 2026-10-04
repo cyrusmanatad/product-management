@@ -1,5 +1,8 @@
 # FRONTEND.md — Benta Door SPA (bentador)
 
+Current tenancy routes and security rules are in [API.md](./API.md), [ARCHITECTURE.md](./ARCHITECTURE.md), and [TENANCY.md](./TENANCY.md). Business requests now require an explicit vendor/store URL; examples below describe the original modules.
+
+
 Documentation for the Vue 3 application in `bentador/`. Supplements [DESIGN.md](./DESIGN.md) and [API.md](./API.md).
 
 ---

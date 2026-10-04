@@ -2,142 +2,121 @@ import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
 import type { Product } from '@/types/data-types'
 import type { CartItem } from '@/types/order'
+import { storefrontSlug } from '@/utils/tenantContext'
 
-const CART_STORAGE_KEY = 'bentadoor.cart.v1'
+const storageKey = () => `bentador.cart.v2.${storefrontSlug.value}`
 
-const asNumber = (value: unknown, fallback = Number.NaN): number => {
-  const number = typeof value === 'number' ? value : Number(value)
-  return Number.isFinite(number) ? number : fallback
-}
-
-const normalizeStoredCartItem = (value: unknown): CartItem | null => {
-  if (!value || typeof value !== 'object') return null
-
-  const item = value as CartItem
-  const price = asNumber(item.price)
-  const quantity = asNumber(item.quantity)
-
-  if (
-    typeof item.base_sku !== 'string' ||
-    item.base_sku === '' ||
-    typeof item.title !== 'string' ||
-    !Number.isFinite(price) ||
-    !Number.isFinite(quantity) ||
-    quantity <= 0 ||
-    (item.price_type !== 'sale' && item.price_type !== 'original')
-  ) {
-    return null
-  }
-
-  return {
-    ...item,
-    price,
-    sale_price: asNumber(item.sale_price, 0),
-    quantity,
-  }
-}
-
-const readStoredCart = (): CartItem[] => {
+function readCart(): CartItem[] {
+  if (!storefrontSlug.value) return []
   try {
-    const raw = localStorage.getItem(CART_STORAGE_KEY)
-    if (!raw) return []
-
-    const parsed: unknown = JSON.parse(raw)
-    if (!parsed || typeof parsed !== 'object') return []
-
-    const document = parsed as { version?: unknown; items?: unknown }
-    if (document.version !== 1 || !Array.isArray(document.items)) {
-      localStorage.removeItem(CART_STORAGE_KEY)
+    const doc = JSON.parse(localStorage.getItem(storageKey()) ?? 'null')
+    if (doc?.version !== 2 || doc.store !== storefrontSlug.value || !Array.isArray(doc.items))
       return []
-    }
-
-    return document.items.flatMap((item) => {
-      const normalized = normalizeStoredCartItem(item)
-      return normalized ? [normalized] : []
-    })
+    return doc.items.filter(
+      (item: CartItem) =>
+        Number.isInteger(item.variant_id) &&
+        item.variant_id > 0 &&
+        Number.isInteger(item.quantity) &&
+        item.quantity > 0 &&
+        typeof item.title === 'string' &&
+        Number.isFinite(item.price) &&
+        item.price >= 0 &&
+        ['sale', 'original'].includes(item.price_type),
+    )
   } catch {
-    localStorage.removeItem(CART_STORAGE_KEY)
     return []
   }
 }
 
-const writeStoredCart = (items: CartItem[]) => {
-  if (items.length === 0) {
-    localStorage.removeItem(CART_STORAGE_KEY)
-    return
-  }
-
-  localStorage.setItem(
-    CART_STORAGE_KEY,
-    JSON.stringify({
-      version: 1,
-      items,
-    }),
-  )
-}
-
 export const useCartStore = defineStore('cart', () => {
-  const items = ref<CartItem[]>(readStoredCart())
+  const items = ref<CartItem[]>(readCart())
   const isCartOpen = ref(false)
-
-  watch(items, (value) => writeStoredCart(value), { deep: true, flush: 'sync' })
-
-  const cartTotal = computed(() => {
-    return items.value.reduce((total, item) => total + item.price * item.quantity, 0)
-  })
-
-  const cartCount = computed(() => {
-    return items.value.reduce((total, item) => total + item.quantity, 0)
-  })
-
-  const addToCart = (product: Product) => {
-    const existingItem = items.value.find((item) => item.base_sku === product.base_sku)
-    if (existingItem) {
-      existingItem.quantity++
-    } else {
-      // wip
-      items.value.push({
-        ...product,
-        price: asNumber(product.price, 0),
-        sale_price: asNumber(product.sale_price, 0),
-        quantity: 1,
-        variant_id: 1,
-        price_type: 'original',
-      })
+  const checkoutKey = ref('')
+  watch(
+    items,
+    (value) => {
+      checkoutKey.value = ''
+      if (!storefrontSlug.value) return
+      if (!value.length) localStorage.removeItem(storageKey())
+      else
+        localStorage.setItem(
+          storageKey(),
+          JSON.stringify({ version: 2, store: storefrontSlug.value, items: value }),
+        )
+    },
+    { deep: true, flush: 'sync' },
+  )
+  watch(
+    storefrontSlug,
+    () => {
+      items.value = readCart()
+      isCartOpen.value = false
+    },
+    { flush: 'sync' },
+  )
+  const cartTotal = computed(
+    () =>
+      items.value.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0) /
+      100,
+  )
+  const cartCount = computed(() => items.value.reduce((sum, item) => sum + item.quantity, 0))
+  function addToCart(product: Product, variantId?: number) {
+    if (!storefrontSlug.value) throw new Error('Open a store before adding items.')
+    const variant = variantId
+      ? product.variants.find((v) => v.id === variantId)
+      : (product.variants.find((v) => v.sku === product.base_sku) ??
+        (product.variants.length === 1 ? product.variants[0] : undefined))
+    if (!variant) throw new Error('Choose a product variant.')
+    const existing = items.value.find((item) => item.variant_id === variant.id)
+    if (existing) {
+      existing.quantity++
+      return
     }
+    const original = Number(variant.price),
+      sale = Number(variant.sale_price)
+    const onSale = variant.sale_price != null && Number.isFinite(sale) && sale < original
+    items.value.push({
+      ...product,
+      base_sku: variant.sku,
+      price: onSale ? sale : original,
+      sale_price: sale,
+      variant_id: variant.id,
+      quantity: 1,
+      price_type: onSale ? 'sale' : 'original',
+    })
   }
-
-  const removeFromCart = (sku: string) => {
-    items.value = items.value.filter((item) => item.base_sku !== sku)
+  const removeFromCart = (id: number) => {
+    items.value = items.value.filter((item) => item.variant_id !== id)
   }
-
-  const updateQuantity = (sku: string, delta: number) => {
-    const item = items.value.find((item) => item.base_sku === sku)
+  function updateQuantity(id: number, delta: number) {
+    const item = items.value.find((item) => item.variant_id === id)
     if (item) {
       item.quantity += delta
-      if (item.quantity <= 0) {
-        removeFromCart(sku)
-      }
+      if (item.quantity <= 0) removeFromCart(id)
     }
   }
-
   const clearCart = () => {
     items.value = []
+    checkoutKey.value = ''
   }
-
   const toggleCart = (value?: boolean) => {
-    isCartOpen.value = value !== undefined ? value : !isCartOpen.value
+    isCartOpen.value = value ?? !isCartOpen.value
   }
-
+  function idempotencyKey() {
+    if (!checkoutKey.value) checkoutKey.value = crypto.randomUUID()
+    return checkoutKey.value
+  }
   return {
     items,
     isCartOpen,
     cartTotal,
     cartCount,
+    checkoutKey,
     addToCart,
     removeFromCart,
     updateQuantity,
     clearCart,
     toggleCart,
+    idempotencyKey,
   }
 })

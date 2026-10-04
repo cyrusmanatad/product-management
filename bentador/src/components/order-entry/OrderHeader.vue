@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { storefrontSlug } from '@/utils/tenantContext'
 import { computed, ref } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import { useCartStore } from '@/stores/cart'
@@ -47,7 +48,7 @@ const userOpen = ref(false)
   <header
     class="bg-white/80 dark:bg-dark-card/80 backdrop-blur-md sticky top-0 z-30 border-b border-gray-200 dark:border-dark-border px-4 lg:px-8 py-4"
   >
-    <div class="flex items-center gap-4 lg:gap-8">
+    <div class="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 sm:gap-4 lg:gap-8">
       <!-- Mobile Toggle & Logo -->
       <div class="flex items-center gap-3 shrink-0">
         <button
@@ -57,7 +58,7 @@ const userOpen = ref(false)
         >
           <Bars3Icon class="w-6 h-6" />
         </button>
-        <div class="flex items-center gap-2">
+        <RouterLink to="/" aria-label="Benta Door home" class="flex items-center gap-2">
           <div
             class="w-8 h-8 bg-teal-500 rounded-lg flex items-center justify-center text-white shadow-lg shadow-teal-500/30"
           >
@@ -67,11 +68,13 @@ const userOpen = ref(false)
             class="text-lg font-black text-gray-900 dark:text-white tracking-tighter hidden sm:block"
             >Benta Door</span
           >
-        </div>
+        </RouterLink>
       </div>
 
       <!-- Search Bar -->
-      <div class="flex-1 relative max-w-2xl mx-auto">
+      <div
+        class="order-last sm:order-none w-full sm:w-auto sm:flex-1 min-w-0 relative max-w-2xl mx-auto"
+      >
         <MagnifyingGlassIcon
           class="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
         />
@@ -115,6 +118,7 @@ const userOpen = ref(false)
         <button
           type="button"
           class="relative p-2.5 bg-teal-500 text-white rounded-xl shadow-lg shadow-teal-500/20 hover:bg-teal-600 transition active:scale-95 flex items-center gap-2"
+          aria-label="Open cart"
           @click="cartStore.toggleCart(true)"
         >
           <ShoppingCartIcon class="w-5 h-5" />
@@ -189,7 +193,7 @@ const userOpen = ref(false)
                 <p class="text-[10px] text-gray-400 font-bold">Customer</p>
               </div>
               <router-link
-                to="/order-summary"
+                :to="`/stores/${storefrontSlug}/orders`"
                 class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-500/10 hover:text-teal-600 dark:hover:text-teal-400 transition group"
               >
                 <ClipboardDocumentListIcon
@@ -198,7 +202,7 @@ const userOpen = ref(false)
                 Order Summary
               </router-link>
               <router-link
-                to="/order-tracking"
+                :to="`/stores/${storefrontSlug}/orders`"
                 class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-500/10 hover:text-teal-600 dark:hover:text-teal-400 transition group"
               >
                 <TruckIcon class="w-4 h-4 text-gray-400 group-hover:text-teal-500" /> Track Order
@@ -207,7 +211,7 @@ const userOpen = ref(false)
 
               <router-link
                 v-if="authStore.hasRole('Super Admin')"
-                to="/analytics"
+                to="/vendors"
                 class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 dark:text-slate-300 hover:bg-teal-50 dark:hover:bg-teal-500/10 hover:text-teal-600 dark:hover:text-teal-400 transition group"
                 ><ChartBarIcon class="w-4 h-4 text-gray-400 group-hover:text-teal-500" />
                 Dashboard

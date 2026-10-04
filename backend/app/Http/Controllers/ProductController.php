@@ -11,6 +11,7 @@ use App\Services\ProductService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 
 class ProductController extends Controller
 {
@@ -24,6 +25,7 @@ class ProductController extends Controller
         $query = Product::query()
             ->select(['id', 'user_id', 'category_id', 'base_sku', 'title', 'description', 'slug', 'status', 'created_at'])
             ->with([
+                'images',
                 'user:id,name,email',
                 'variants:id,product_id,sku,uom,price,sale_price,currency,attributes',
                 'variants.inventory:id,variant_id,stock_quantity,reserved_quantity',
@@ -85,6 +87,8 @@ class ProductController extends Controller
                 'message' => 'Product created successfully',
                 'data' => $product,
             ], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $th) {
             Log::error($th);
 
@@ -115,8 +119,8 @@ class ProductController extends Controller
      */
     public function update(UpdateProductRequest $request, Product $product)
     {
+        $this->authorize('update', $product);
         try {
-            $this->authorize('update', $product);
 
             $dto = ProductData::fromRequest(
                 $request->validated(),
@@ -129,6 +133,8 @@ class ProductController extends Controller
                 'message' => 'Product updated successfully',
                 'data' => $product,
             ]);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $th) {
             Log::error($th);
 

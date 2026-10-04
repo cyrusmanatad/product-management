@@ -1,4 +1,6 @@
 export interface User {
+  is_platform_admin?: boolean
+  must_reset_password?: boolean
   id: number
   name: string
   email: string

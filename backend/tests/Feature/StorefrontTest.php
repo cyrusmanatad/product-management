@@ -14,6 +14,7 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    useVendor();
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 });
 
@@ -56,7 +57,7 @@ test('guests can list published products and not drafts', function () {
         'attributes' => ['Color' => 'Blue'],
     ]);
 
-    $products = $this->getJson('/api/v1/catalog/products');
+    $products = $this->getJson('/api/v1/stores/benta-door/catalog/products');
 
     $products->assertOk();
     $titles = collect($products->json('data'))->pluck('title');
@@ -67,7 +68,7 @@ test('guests can list published products and not drafts', function () {
     expect($products->json('data.0.variants.0'))->not->toHaveKey('reserved_quantity')
         ->and($products->json('data.0.variants.0.stock'))->toEqual(8);
 
-    $categories = $this->getJson('/api/v1/catalog/categories');
+    $categories = $this->getJson('/api/v1/stores/benta-door/catalog/categories');
 
     $categories->assertOk();
     $names = collect($categories->json())->pluck('name');
@@ -104,7 +105,8 @@ test('a customer can check out without the staff create orders permission', func
     ]);
 
     $payload = [
-        'payment_method' => 'gcash',
+        'payment_method' => 'cash',
+        'idempotency_key' => 'test-order',
         'discount' => 9999,
         'tax' => 50,
         'shipping_fee' => 80,
@@ -119,12 +121,13 @@ test('a customer can check out without the staff create orders permission', func
 
     $this->actingAs($customer, 'api');
 
-    $this->postJson('/api/v1/orders', $payload)->assertForbidden();
+    $this->postJson('/api/v1/orders', $payload)->assertNotFound();
 
-    $this->postJson('/api/v1/checkout', $payload)
+    $this->postJson('/api/v1/stores/benta-door/checkout', $payload)
         ->assertCreated()
         ->assertJsonPath('message', 'Order created successfully');
 
+    useVendor();
     $order = Order::query()->first();
 
     expect($order)->not->toBeNull()
@@ -137,8 +140,9 @@ test('a customer can check out without the staff create orders permission', func
 });
 
 test('a guest cannot check out', function () {
-    $this->postJson('/api/v1/checkout', [
-        'payment_method' => 'gcash',
+    $this->postJson('/api/v1/stores/benta-door/checkout', [
+        'payment_method' => 'cash',
+        'idempotency_key' => 'test-order',
         'items' => [
             ['variant_id' => 1, 'quantity' => 1, 'price_type' => 'original'],
         ],

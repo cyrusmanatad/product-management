@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToVendor;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasManyThrough;
@@ -9,6 +10,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Product extends Model
 {
+    use BelongsToVendor;
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
@@ -26,6 +28,11 @@ class Product extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function images()
+    {
+        return $this->hasMany(ProductImage::class)->orderByDesc('is_primary')->orderBy('sort_order')->orderBy('id');
     }
 
     public function reviews()

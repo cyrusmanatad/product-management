@@ -36,7 +36,5 @@ export interface KpiItem {
 
 export interface KpiData {
   net_revenue: KpiItem
-  conversion_rate: KpiItem
-  store_sessions: KpiItem
   avg_order_value: KpiItem
 }

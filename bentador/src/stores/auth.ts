@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import axios from '@/utils/axios' // axios.js file
 import { useCategoryStore } from './category'
 import { ref } from 'vue'
+import { activeVendorId, changeContext, staffPath, storefrontSlug } from '@/utils/tenantContext'
 import type { Credentials, PasswordForm, ProfileForm, RegisterPayload, User } from '@/types/auth'
 import router from '@/router'
 
@@ -30,14 +31,39 @@ export const useAuthStore = defineStore('auth', () => {
     axios.defaults.headers.common['Authorization'] = `Bearer ${token}`
   }
 
+  const clearSession = () => {
+    accessToken.value = ''
+    user.value = null
+    localStorage.removeItem('auth_token')
+    delete axios.defaults.headers.common['Authorization']
+    changeContext(null, storefrontSlug.value)
+    window.dispatchEvent(new Event('session:cleared'))
+  }
+  window.addEventListener('session:expired', clearSession)
+
   const login = async (credentials: Credentials, options?: { redirect?: boolean }) => {
     clearLoginError()
 
     try {
       const { data } = await axios.post('/api/v1/auth/login', credentials)
 
+      user.value = null
+      changeContext(null, storefrontSlug.value)
       storeToken(data.authorization.access_token || '')
 
+      if (data.authorization.must_reset_password) {
+        user.value = {
+          id: 0,
+          name: '',
+          email: '',
+          created_at: '',
+          roles: [],
+          permissions: [],
+          must_reset_password: true,
+        }
+        router.push('/account')
+        return true
+      }
       await fetchUser()
 
       if (options?.redirect === false) {
@@ -45,10 +71,10 @@ export const useAuthStore = defineStore('auth', () => {
       }
 
       const redirect = router.currentRoute.value.query.redirect as string
-      router.push(redirect || { name: 'order-entry' })
+      router.push(redirect?.startsWith('/') && !redirect.startsWith('//') ? redirect : '/vendors')
       return true
     } catch (error: unknown) {
-      accessToken.value = ''
+      clearSession()
       const message = axios.isAxiosError(error) ? error.response?.data?.message : ''
       loginError.value =
         typeof message === 'string' && message !== ''
@@ -64,12 +90,14 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       const { data } = await axios.post('/api/v1/auth/register', payload)
 
+      user.value = null
+      changeContext(null, storefrontSlug.value)
       storeToken(data.authorization.access_token || '')
 
       await fetchUser()
 
       if (options?.redirect !== false) {
-        router.push({ name: 'order-entry' })
+        router.push('/vendors')
       }
 
       return true
@@ -96,7 +124,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       if (user.value && !force) return
 
-      const { data } = await axios.get('/api/v1/users/me')
+      const { data } = await axios.get(activeVendorId.value ? staffPath('me') : '/api/v1/users/me')
 
       user.value = data.data
       status.value = 200
@@ -110,12 +138,19 @@ export const useAuthStore = defineStore('auth', () => {
 
   const updateProfile = async (payload: ProfileForm) => {
     const { data } = await axios.put('/api/v1/profile', payload)
-    user.value = data.data
+    user.value = {
+      ...data.data,
+      roles: user.value?.roles ?? [],
+      permissions: user.value?.permissions ?? [],
+    }
     return data
   }
 
   const updatePassword = async (payload: PasswordForm) => {
     const { data } = await axios.put('/api/v1/profile/password', payload)
+    if (data.authorization?.access_token) storeToken(data.authorization.access_token)
+    if (user.value) user.value.must_reset_password = false
+    await fetchUser(true)
     return data
   }
 
@@ -130,7 +165,7 @@ export const useAuthStore = defineStore('auth', () => {
   const refreshToken = async () => {
     try {
       const { data } = await axios.post('/api/v1/auth/refresh')
-      accessToken.value = data.authorization.access_token
+      storeToken(data.authorization.access_token)
       return true
     } catch {
       accessToken.value = ''
@@ -139,11 +174,12 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const logout = async () => {
-    await axios.post('/api/v1/auth/logout')
-    user.value = null
-
-    const categories = useCategoryStore()
-    categories.clearCategories()
+    try {
+      await axios.post('/api/v1/auth/logout')
+    } finally {
+      clearSession()
+      useCategoryStore().clearCategories()
+    }
     return true
   }
 

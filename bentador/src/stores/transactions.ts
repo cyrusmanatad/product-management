@@ -1,6 +1,7 @@
+import { useCartStore } from './cart'
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import axios from '@/utils/axios'
 import { useOrderMapper } from '@/composables/useOrderMapper'
 import type { CartItem, Order, OrderPayload } from '@/types/order'
 import type { Pagination, Stat, Status } from '@/types/data-types'
@@ -75,7 +76,10 @@ export const useOrderStore = defineStore('order', () => {
     errors.value = {}
 
     try {
-      const payload = mapCartToPayload(cartItems, options)
+      const payload = {
+        ...mapCartToPayload(cartItems, options),
+        idempotency_key: useCartStore().idempotencyKey(),
+      }
 
       const { data } = await axios.post('/api/v1/checkout', payload)
       return data

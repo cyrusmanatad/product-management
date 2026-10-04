@@ -7,7 +7,10 @@ use App\Models\ForumsComment;
 use App\Models\Inventory;
 use App\Models\Product;
 use App\Models\ProductVariant;
+use App\Models\Vendor;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
 class DatabaseSeeder extends Seeder
 {
@@ -16,13 +19,26 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        abort_if(app()->environment('production'), 403, 'Demo seeding is disabled in production.');
+        $vendor = Vendor::where('slug', 'benta-door')->firstOrFail();
+        app(TenantContext::class)->vendor = $vendor;
+        setPermissionsTeamId($vendor->id);
+
+        try {
+            DB::transaction(fn () => $this->seedVendor());
+        } finally {
+            app(TenantContext::class)->clear();
+        }
+    }
+
+    private function seedVendor(): void
+    {
         $this->call([
             PermissionsSeeder::class,
             CategorySeeder::class,
         ]);
 
-        // Production gets a small catalog. Local and test seeds keep the full set.
-        $productCount = app()->environment('production') ? 5 : 40;
+        $productCount = 40;
 
         $products = Product::factory()
             ->count($productCount)
@@ -70,7 +86,7 @@ class DatabaseSeeder extends Seeder
                         'uom' => fake()->randomElement(['pcs', 'box', 'kg', 'lt']),
                         'price' => fake()->randomFloat(2, 500, 1000),
                         'sale_price' => fake()->randomFloat(2, 400, 500),
-                        'currency' => fake()->currencyCode(),
+                        'currency' => 'PHP',
                     ]
                 );
 

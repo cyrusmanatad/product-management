@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Product;
 use App\Models\User;
+use App\Tenancy\TenantContext;
 
 class ProductPolicy
 {
@@ -36,7 +37,7 @@ class ProductPolicy
      */
     public function update(User $user, Product $product): bool
     {
-        return $user->can('edit products');
+        return $product->vendor_id === app(TenantContext::class)->id() && $user->can('edit products');
     }
 
     /**

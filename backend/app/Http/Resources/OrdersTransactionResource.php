@@ -24,6 +24,7 @@ class OrdersTransactionResource extends JsonResource
             'payment_method' => $this->payment_method,
             'created_at' => $this->humanize_datetime,
             'items' => $this->items,
+            'payments' => $this->whenLoaded('payments'),
             'color' => $this->color(),
         ];
     }

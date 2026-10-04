@@ -2,12 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\BelongsToVendor;
 use Database\Factories\ProductReviewFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class ProductReview extends Model
 {
+    use BelongsToVendor;
+
     /** @use HasFactory<ProductReviewFactory> */
     use HasFactory;
 

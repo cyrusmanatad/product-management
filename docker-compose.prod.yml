@@ -58,6 +58,17 @@ services:
       DB_PASSWORD: ${POSTGRES_PASSWORD}
 
       JWT_SECRET: ${JWT_SECRET}
+      MAIL_MAILER: ${MAIL_MAILER:-log}
+      MAIL_SCHEME: ${MAIL_SCHEME:-smtp}
+      MAIL_HOST: ${MAIL_HOST:-127.0.0.1}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-noreply@example.com}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Benta Door}
+
+    volumes:
+      - backend_storage:/var/www/html/storage
 
     expose:
       - "9000"
@@ -107,4 +118,5 @@ networks:
 
 
 volumes:
+  backend_storage:
   postgres_data:

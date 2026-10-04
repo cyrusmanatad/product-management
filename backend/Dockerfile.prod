@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
 # Install Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
+COPY php/uploads.ini /usr/local/etc/php/conf.d/uploads.ini
+
 WORKDIR /var/www/html
 
 # Copy existing application directory contents to the working directory
@@ -21,6 +23,9 @@ RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoload
         /var/www/html/bootstrap/cache
 
 # Expose port 9000 and start php-fpm server (for FastCGI Process Manager)
+COPY docker-entrypoint.sh /usr/local/bin/laravel-entrypoint
+RUN chmod +x /usr/local/bin/laravel-entrypoint
+ENTRYPOINT ["laravel-entrypoint"]
 EXPOSE 9000
 
 CMD ["php-fpm"]

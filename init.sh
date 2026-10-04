@@ -32,8 +32,8 @@ docker compose ps
 
 # Host bind-mount replaces image ownership; php-fpm runs as www-data.
 echo ""
-echo "[6/7] Making storage, cache, and database writable..."
-docker compose exec -u root backend chmod -R a+w storage bootstrap/cache database
+echo "[6/7] Making storage and cache writable..."
+docker compose exec -u root backend sh -c 'chgrp -R www-data storage bootstrap/cache && chmod -R g+rwX storage bootstrap/cache'
 
 # Install Laravel dependencies
 echo ""

@@ -17,8 +17,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate:
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ github.event.release.tag_name || inputs.tag }}
   deploy:
     name: Deploy to OVH
+    needs: validate
     runs-on: ubuntu-latest
 
     environment:
@@ -41,35 +46,38 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} << EOF
-            set -e
-
+          [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._/-]+$ ]] || exit 1
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} bash -s -- "$RELEASE_TAG" <<'EOF'
+            set -euo pipefail
+            umask 077
+            release_tag="$1"
             cd /opt/bentador
+            mkdir -p backups
+            backup="backups/pre-${release_tag//\//-}-$(date -u +%Y%m%dT%H%M%SZ).dump"
+            compose=(docker compose --env-file .env.prod -f docker-compose.prod.yml)
 
-            echo "======================================"
-            echo "Deploying release: ${RELEASE_TAG}"
-            echo "======================================"
+            # Close ingress before taking the consistent pre-migration snapshot.
+            "${compose[@]}" stop nginx
+            "${compose[@]}" exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$backup"
+            "${compose[@]}" exec -T postgres pg_restore --list < "$backup" > /dev/null
+            "${compose[@]}" exec -T backend tar -C /var/www/html/storage -czf - . > "$backup.storage.tgz"
+            tar -tzf "$backup.storage.tgz" > /dev/null
+            baseline_sql='SELECT (SELECT count(*) FROM products), (SELECT count(*) FROM orders), (SELECT count(*) FROM order_items), (SELECT COALESCE(sum(total),0) FROM orders), (SELECT COALESCE(sum(stock_quantity),0) FROM inventories);'
+            "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" > "$backup.before"
 
-            echo "Fetching release tag..."
-            git fetch origin tag "${RELEASE_TAG}"
-
-            echo "Checking out release..."
-            git checkout --force "${RELEASE_TAG}"
-
-            echo "Building production containers..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml build
-
-            echo "Starting production containers..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml up -d
-
-            echo "Running migrations..."
-            docker compose --env-file .env.prod -f docker-compose.prod.yml exec -T backend php artisan migrate --force
-
-            echo "Deployment complete."
-
-            echo "Running containers:"
-            docker compose --env-file .env.prod -f docker-compose.prod.yml ps
-
-            echo "Deployed version:"
+            git fetch origin tag "$release_tag"
+            git checkout --force "$release_tag"
+            "${compose[@]}" build
+            # NGINX stays stopped until schema and reconciliation checks pass.
+            "${compose[@]}" up -d postgres backend frontend
+            "${compose[@]}" exec -T backend tar -C /var/www/html/storage -xzf - < "$backup.storage.tgz"
+            "${compose[@]}" exec -T backend chown -R www-data:www-data /var/www/html/storage
+            "${compose[@]}" exec -T backend php artisan migrate --force
+            "${compose[@]}" exec -T backend php artisan tenancy:verify
+            "${compose[@]}" exec -T backend php artisan permission:cache-reset
+            "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" > "$backup.after"
+            cmp "$backup.before" "$backup.after"
+            "${compose[@]}" up -d nginx
+            "${compose[@]}" ps
             git describe --tags --exact-match
           EOF

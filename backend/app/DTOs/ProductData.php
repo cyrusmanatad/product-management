@@ -35,7 +35,7 @@ class ProductData
             $data['slug'] ?? null,
             $data['currency'] ?? null,
             $data['base_sku'],
-            $data['options'],
+            $data['options'] ?? [],
             $data['variants'],
             $userId
         );

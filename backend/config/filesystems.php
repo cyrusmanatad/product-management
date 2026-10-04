@@ -38,6 +38,12 @@ return [
             'report' => false,
         ],
 
+        'product_images' => [
+            'driver' => 'local',
+            'root' => storage_path('app/product-images'),
+            'throw' => true,
+        ],
+
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),

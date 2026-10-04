@@ -15,19 +15,14 @@ class CategorySeeder extends Seeder
     {
         $categories = ['Electronics', 'Fashion', 'Home & Living', 'Beauty', 'Sports', 'Gadgets'];
 
-        $mapCategories = array_map(function ($category, $index) {
-            $ctr = $index + 1;
-
-            return [
+        foreach ($categories as $index => $category) {
+            Category::firstOrCreate(['slug' => Str::slug($category)], [
                 'name' => $category,
-                'slug' => Str::slug($category),
                 'path' => Str::slug($category),
-                'level' => $ctr,
+                'level' => 1,
                 'is_active' => 1,
-                'sort_order' => $ctr,
-            ];
-        }, $categories, array_keys($categories));
-
-        Category::insert($mapCategories);
+                'sort_order' => $index + 1,
+            ]);
+        }
     }
 }

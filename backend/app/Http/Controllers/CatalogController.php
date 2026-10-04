@@ -6,6 +6,8 @@ use App\Enums\ProductStatus;
 use App\Http\Resources\CatalogProductResource;
 use App\Models\Category;
 use App\Models\Product;
+use App\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 
 class CatalogController extends Controller
@@ -13,17 +15,30 @@ class CatalogController extends Controller
     /**
      * Published products for the public shop.
      */
-    public function products(Request $request)
+    private function catalog(): Builder
     {
-        $query = Product::query()
+        return Product::query()
             ->select(['id', 'category_id', 'base_sku', 'title', 'description', 'slug', 'status', 'created_at'])
             ->with([
-                'variants:id,product_id,sku,uom,price,sale_price,currency,attributes',
+                'images',
+                'variants' => fn ($q) => $q->where('is_active', true)->where('currency', app(TenantContext::class)->vendor->currency)->select(['id', 'product_id', 'sku', 'uom', 'price', 'sale_price', 'currency', 'attributes']),
                 'variants.inventory:id,variant_id,stock_quantity,reserved_quantity',
                 'category:id,name',
             ])
             ->where('status', ProductStatus::PUBLISHED->value)
             ->orderByDesc('created_at');
+    }
+
+    public function show(string $slug, string $productSlug)
+    {
+        return new CatalogProductResource($this->catalog()->where('slug', $productSlug)
+            ->whereHas('variants', fn ($query) => $query->where('is_active', true)->where('currency', app(TenantContext::class)->vendor->currency))
+            ->firstOrFail());
+    }
+
+    public function products(Request $request)
+    {
+        $query = $this->catalog();
 
         if ($request->filled('category')) {
             $categories = $request->category;

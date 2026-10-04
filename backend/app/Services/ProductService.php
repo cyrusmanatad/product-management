@@ -5,9 +5,13 @@
 namespace App\Services;
 
 use App\DTOs\ProductData;
+use App\Models\Inventory;
 use App\Models\Product;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ProductService
 {
@@ -29,7 +33,7 @@ class ProductService
                 'base_sku' => $data->base_sku,
                 'title' => $data->title,
                 'description' => $data->description ?? null,
-                'slug' => $data->slug,
+                'slug' => $data->slug ?: Str::slug($data->title).'-'.strtolower((string) Str::ulid()),
                 'status' => $data->status,
             ]);
 
@@ -40,7 +44,7 @@ class ProductService
                     'uom' => $data->uom,
                     'price' => $item['price'],
                     'sale_price' => $item['sale_price'],
-                    'currency' => $data->currency ?? 'USD',
+                    'currency' => app(TenantContext::class)->vendor->currency,
                     'attributes' => $item['attributes'],
                 ]);
 
@@ -58,13 +62,15 @@ class ProductService
     public function update(Product $product, ProductData $data): bool
     {
         return DB::transaction(function () use ($product, $data) {
+            $product->variants()->orderBy('id')->lockForUpdate()->get();
+            Inventory::whereIn('variant_id', $product->variants()->pluck('id'))->orderBy('variant_id')->lockForUpdate()->get();
             // Update Product
             $product->update([
                 'category_id' => $data->category_id,
                 'base_sku' => $data->base_sku,
                 'title' => $data->title,
                 'description' => $data->description ?? null,
-                'slug' => $data->slug,
+                'slug' => $data->slug ?: Str::slug($data->title).'-'.strtolower((string) Str::ulid()),
                 'status' => $data->status,
             ]);
 
@@ -81,12 +87,15 @@ class ProductService
                         'uom' => $data->uom,
                         'price' => $item['price'],
                         'sale_price' => $item['sale_price'],
-                        'currency' => $data->currency ?? 'USD',
+                        'currency' => app(TenantContext::class)->vendor->currency,
                         'attributes' => $item['attributes'],
                         'is_active' => true,
                     ]
                 );
 
+                if (($variant->inventory?->reserved_quantity ?? 0) > ($item['stock'] ?? 0)) {
+                    throw ValidationException::withMessages(['variants' => 'Stock cannot be lower than reserved quantity.']);
+                }
                 // Update or Create Inventory per variant
                 $variant->inventory()->updateOrCreate(
                     ['variant_id' => $variant->id],
@@ -114,7 +123,6 @@ class ProductService
             // Cascade delete variants and inventory
             // (or rely on onDelete('cascade') in migrations)
             foreach ($product->variants as $variant) {
-                $variant->inventory()->delete();
                 $variant->delete();
             }
 

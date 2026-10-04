@@ -1,6 +1,12 @@
 name: CI
 
 on:
+  workflow_call:
+    inputs:
+      ref:
+        type: string
+        required: false
+        default: ''
   push:
     branches:
       - main
@@ -14,6 +20,23 @@ jobs:
     name: Backend CI
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: bentador_test
+          POSTGRES_USER: test
+          POSTGRES_PASSWORD: test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U test -d bentador_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_DATABASE: bentador_test
+      DB_USERNAME: test
+      DB_PASSWORD: test
     defaults:
       run:
         working-directory: backend
@@ -21,12 +44,14 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Set up PHP
         uses: shivammathur/setup-php@v2
         with:
           php-version: "8.5"
-          extensions: pdo_sqlite
+          extensions: pdo_sqlite, pdo_pgsql, bcmath, pcntl
           coverage: none
 
       - name: Install Composer dependencies
@@ -55,6 +80,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -67,10 +94,16 @@ jobs:
         run: npm ci
 
       - name: Lint
-        run: npm run lint
+        run: npx oxlint . && npx eslint .
 
       - name: Test
-        run: npm run test:unit
+        run: npm run test:unit -- --run
 
       - name: Build
         run: npm run build
+
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Browser tests
+        run: npm run test:e2e

@@ -18,10 +18,12 @@ class InventoryFactory extends Factory
      */
     public function definition(): array
     {
+        $stock = mt_rand(50, 99999);
+
         return [
             // 'variant_id' => ProductVariant::inRandomOrder()->first()->id ?? ProductVariant::factory(),
-            'stock_quantity' => mt_rand(50, 99999),
-            'reserved_quantity' => mt_rand(50, 100),
+            'stock_quantity' => $stock,
+            'reserved_quantity' => mt_rand(0, min(100, $stock)),
             'low_stock_threshold' => mt_rand(50, 100),
         ];
     }

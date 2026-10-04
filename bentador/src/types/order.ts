@@ -1,6 +1,8 @@
 import type { Product } from './data-types'
 
 export interface Order {
+  currency?: string
+  payments?: { id: number; reference: string; reversed_at: string | null }[]
   id: number
   order_number: string
   customer: string
@@ -27,6 +29,7 @@ export interface OrderItem {
 }
 
 export interface OrderPayload {
+  idempotency_key?: string
   currency?: string
   discount?: number
   tax?: number

@@ -1,7 +1,7 @@
 <script setup lang="ts">
+import ProductImageDisplay from '@/components/product/ProductImageDisplay.vue'
 import type { Product } from '@/types/data-types'
 import { PlusIcon, StarIcon } from '@heroicons/vue/24/solid'
-import { ShoppingCartIcon } from '@heroicons/vue/24/outline'
 
 defineProps<{
   product: Product
@@ -20,12 +20,7 @@ const emit = defineEmits<{
     @click="emit('quick-view', product)"
   >
     <div class="relative aspect-[4/3] overflow-hidden bg-gray-50 dark:bg-slate-900/50">
-      <div
-        class="absolute inset-0 flex items-center justify-center opacity-10 group-hover:scale-110 transition-transform duration-700"
-      >
-        <!-- Icon Placeholder -->
-        <ShoppingCartIcon class="w-32 h-32 text-gray-400" />
-      </div>
+      <ProductImageDisplay :src="product.primary_image_url" :alt="product.title" />
 
       <!-- Badges -->
       <div class="absolute top-4 left-4 flex flex-col gap-2">
@@ -41,7 +36,6 @@ const emit = defineEmits<{
           Out of Stock
         </span>
       </div>
-
     </div>
 
     <div class="p-6 flex-1 flex flex-col">

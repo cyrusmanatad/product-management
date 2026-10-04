@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Tenancy\TenantContext;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -19,7 +20,7 @@ class StoreOrderRequest extends FormRequest
         return [
             // Order Info
             'notes' => ['nullable', 'string', 'max:500'],
-            'currency' => ['nullable', 'string', 'size:3'],
+            'currency' => ['nullable', Rule::in([app(TenantContext::class)->vendor?->currency])],
 
             // Payment
             'payment_method' => ['nullable', 'string', Rule::in([
@@ -38,7 +39,7 @@ class StoreOrderRequest extends FormRequest
 
             // Order Items
             'items' => ['required', 'array', 'min:1'],
-            'items.*.variant_id' => ['required', 'integer', 'exists:product_variants,id'],
+            'items.*.variant_id' => ['required', 'integer', 'distinct', Rule::exists('product_variants', 'id')->where('vendor_id', app(TenantContext::class)->id())->whereNull('deleted_at')],
             'items.*.quantity' => ['required', 'integer', 'min:1'],
             'items.*.price_type' => ['required', 'string', Rule::in(['sale', 'original'])],
         ];

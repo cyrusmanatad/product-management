@@ -42,12 +42,12 @@ class ProfileController extends Controller
             ], 422);
         }
 
-        $user->update([
-            'password' => Hash::make($request->password),
-        ]);
+        $user->forceFill(['must_reset_password' => false, 'token_version' => $user->token_version + 1, 'password' => Hash::make($request->password)])->save();
+        $token = auth('api')->login($user);
 
         return response()->json([
             'message' => 'Password updated successfully.',
+            'authorization' => ['access_token' => $token],
         ]);
     }
 }

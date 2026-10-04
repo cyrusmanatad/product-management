@@ -9,8 +9,6 @@ import {
   ChevronDownIcon,
   DocumentTextIcon,
   CurrencyDollarIcon,
-  ArrowTrendingUpIcon,
-  UsersIcon,
   ShoppingCartIcon,
   MagnifyingGlassIcon,
   GlobeAltIcon,
@@ -29,23 +27,11 @@ const timeRange = ref('Last 30 Days')
 const timeRangeOpen = ref(false)
 const exportModal = ref(false)
 
-const CHART_COLORS = [
-  '#F97316',
-  '#94A3B8',
-  '#9413B0',
-  '#F94316',
-  '#3B82F6',
-  '#EAB308',
-  '#EC4899',
-]
+const CHART_COLORS = ['#F97316', '#94A3B8', '#9413B0', '#F94316', '#3B82F6', '#EAB308', '#EC4899']
 
 const chartPalette = computed(() => {
   const lead =
-    uiStore.colorTheme === 'green'
-      ? '#0D9488'
-      : uiStore.isDarkMode
-        ? '#ADE1FB'
-        : '#266CA9'
+    uiStore.colorTheme === 'green' ? '#0D9488' : uiStore.isDarkMode ? '#ADE1FB' : '#266CA9'
   return [lead, ...CHART_COLORS]
 })
 
@@ -54,28 +40,12 @@ const kpis = computed(() => {
 
   return [
     {
-      label: 'Net Revenue',
+      label: 'Collected payments',
       val: k ? `₱${k.net_revenue.value}` : 'n/a',
       trend: k?.net_revenue.trend.label ?? 'n/a',
       up: k?.net_revenue.trend.direction === 'up',
       icon: CurrencyDollarIcon,
       color: 'text-green-500',
-    },
-    {
-      label: 'Conversion Rate',
-      val: k?.conversion_rate.value ?? 'n/a',
-      trend: k?.conversion_rate.trend.label ?? 'n/a',
-      up: k?.conversion_rate.trend.direction === 'up',
-      icon: ArrowTrendingUpIcon,
-      color: 'text-green-500',
-    },
-    {
-      label: 'Store Sessions',
-      val: k?.store_sessions.value ?? 'n/a',
-      trend: k?.store_sessions.trend.label ?? 'n/a',
-      up: k?.store_sessions.trend.direction === 'up',
-      icon: UsersIcon,
-      color: 'text-red-500',
     },
     {
       label: 'Avg. Order Value',
@@ -376,7 +346,10 @@ onMounted(() => analyticsStore.fetchAll())
           Top Categories
         </h3>
 
-        <div v-if="analyticsStore.loading" class="h-[300px] flex flex-col items-center justify-center gap-3">
+        <div
+          v-if="analyticsStore.loading"
+          class="h-[300px] flex flex-col items-center justify-center gap-3"
+        >
           <div
             class="w-8 h-8 border-[3px] border-gray-200 dark:border-slate-700 border-t-teal-500 rounded-full animate-spin"
             role="status"

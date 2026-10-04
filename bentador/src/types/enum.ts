@@ -4,7 +4,7 @@ export enum ROLES {
   Support = 'Support',
   Staff = 'Inventory Staff',
   Admin = 'Admin',
-  SuperAdmin = 'Super Admin',
+  SuperAdmin = 'Owner',
   Client = 'Client',
 }
 

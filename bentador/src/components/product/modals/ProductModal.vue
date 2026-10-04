@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useProductStore } from '@/stores/products'
 import BaseModal from '@/components/common/BaseModal.vue'
 import {
@@ -16,6 +16,8 @@ import type { ProductForm, ProductOption } from '@/types/data-types'
 import { useCategoryStore } from '@/stores/category'
 import { ProductStatus } from '@/types/enum'
 import { useAuthStore } from '@/stores/auth'
+import axios from '@/utils/axios'
+import ProductImagesEditor from '@/components/product/ProductImagesEditor.vue'
 
 const props = defineProps<{
   mode: 'add' | 'edit'
@@ -25,7 +27,26 @@ const productStore = useProductStore()
 const categoryStore = useCategoryStore()
 const authStore = useAuthStore()
 
-const canEditOrCreate = authStore.hasPermission(['edit products'])
+const canEditOrCreate = computed(() =>
+  authStore.hasPermission([props.mode === 'add' ? 'create products' : 'edit products']),
+)
+const canManageImages = computed(() => authStore.hasPermission(['edit products']))
+const imageEditor = ref<InstanceType<typeof ProductImagesEditor> | null>(null)
+const savedProductId = ref<number | null>(null)
+const saving = ref(false)
+const imageBusy = ref(false)
+const saveError = ref('')
+const close = () => {
+  if (!saving.value && !imageBusy.value) productStore.toggleModal(props.mode, false)
+}
+watch(
+  () => productStore.modals[props.mode],
+  () => {
+    savedProductId.value = null
+    saveError.value = ''
+    activeTab.value = 'basic'
+  },
+)
 
 const activeTab = ref<'basic' | 'attributes' | 'variants'>('basic')
 
@@ -125,12 +146,18 @@ const generateVariants = () => {
 }
 
 watch(
-  [() => formData.value.base_sku, () => formData.value.sale_price, () => formData.value.stock],
+  [
+    () => formData.value.base_sku,
+    () => formData.value.price,
+    () => formData.value.sale_price,
+    () => formData.value.stock,
+  ],
   () => {
     if (variantProductOption.value.filter((o) => o.name && o.values.length > 0).length === 0) {
       if (formData.value.variants[0]) {
         formData.value.variants[0].sku = formData.value.base_sku.toUpperCase()
-        formData.value.variants[0].price = formData.value.sale_price
+        formData.value.variants[0].price = formData.value.price
+        formData.value.variants[0].sale_price = formData.value.sale_price
         formData.value.variants[0].stock = formData.value.stock
       }
     }
@@ -138,8 +165,8 @@ watch(
 )
 
 watch(
-  () => productStore.selectedProduct,
-  (val) => {
+  [() => productStore.selectedProduct, () => productStore.modals[props.mode]],
+  ([val]) => {
     activeTab.value = 'basic'
     if (val && props.mode === 'edit') {
       formData.value = {
@@ -154,7 +181,10 @@ watch(
         sale_price: val.sale_price,
         status: val.status,
         options: val.options || [],
-        variants: val.variants || [],
+        variants: (val.variants || []).map((variant) => ({
+          ...variant,
+          attributes: { ...variant.attributes },
+        })),
       }
       // variantProductOption.value = JSON.parse(JSON.stringify(val.options || []))
 
@@ -204,7 +234,7 @@ watch(
       variantProductOption.value = []
     }
   },
-  { immediate: true, deep: true },
+  { immediate: true },
 )
 
 watch(
@@ -215,12 +245,35 @@ watch(
   { deep: true },
 )
 
-const submit = () => {
+const submit = async () => {
+  if (saving.value || imageBusy.value) return
+  saving.value = true
+  saveError.value = ''
   formData.value.options = variantProductOption.value.filter((o) => o.name && o.values.length > 0)
-  if (props.mode === 'add') {
-    productStore.addProduct({ ...formData.value })
-  } else if (productStore.selectedProduct) {
-    productStore.updateProduct(productStore.selectedProduct.id, { ...formData.value })
+  try {
+    let id = props.mode === 'edit' ? productStore.selectedProduct?.id : savedProductId.value
+    if (id) await axios.put(`/api/v1/products/${id}`, { ...formData.value })
+    else {
+      const { data } = await axios.post('/api/v1/products', { ...formData.value })
+      id = data.data.id as number
+      savedProductId.value = id
+    }
+    await imageEditor.value?.uploadPending(id!)
+    await productStore.fetchProducts(undefined, props.mode === 'add' ? 1 : undefined)
+    await productStore.fetchStatistics()
+    productStore.toggleModal(props.mode, false)
+  } catch (cause) {
+    const detail = axios.isAxiosError(cause) ? cause.response?.data : null
+    saveError.value =
+      Object.values(detail?.errors ?? {})
+        .flat()
+        .join(' ') ||
+      detail?.message ||
+      'Could not save the product. Try again.'
+    if (savedProductId.value)
+      saveError.value = `Product details saved. ${saveError.value} Retry to finish saving its images.`
+  } finally {
+    saving.value = false
   }
 }
 </script>
@@ -228,7 +281,7 @@ const submit = () => {
 <template>
   <BaseModal
     :show="mode === 'add' ? productStore.modals.add : productStore.modals.edit"
-    @close="productStore.toggleModal(mode, false)"
+    @close="close"
   >
     <!-- Modal Header -->
     <div
@@ -247,7 +300,7 @@ const submit = () => {
         </p>
       </div>
       <button
-        @click="productStore.toggleModal(mode, false)"
+        @click="close"
         class="p-2 hover:bg-gray-200 dark:hover:bg-slate-800 rounded-full transition text-gray-400 dark:text-slate-500"
         type="button"
       >
@@ -257,14 +310,14 @@ const submit = () => {
 
     <!-- Tab Navigation -->
     <div
-      class="px-6 border-b dark:border-dark-border flex bg-white dark:bg-dark-card sticky top-0 z-10"
+      class="px-2 sm:px-6 overflow-x-auto shrink-0 border-b dark:border-dark-border flex bg-white dark:bg-dark-card sticky top-0 z-10"
     >
       <button
         v-for="tab in ['basic', 'attributes', 'variants'] as const"
         :key="tab"
         @click="activeTab = tab"
         type="button"
-        class="px-4 py-4 text-xs font-black uppercase tracking-widest transition-all relative flex items-center gap-2"
+        class="px-3 sm:px-4 py-4 text-xs font-black uppercase tracking-widest transition-all relative flex items-center gap-2"
         :class="[
           activeTab === tab
             ? 'text-teal-600 dark:text-teal-400'
@@ -405,6 +458,16 @@ const submit = () => {
           </div>
         </div>
       </div>
+
+      <ProductImagesEditor
+        v-if="productStore.modals[mode] && canManageImages"
+        v-show="activeTab === 'basic'"
+        ref="imageEditor"
+        :product-id="mode === 'edit' ? (productStore.selectedProduct?.id ?? null) : null"
+        :disabled="saving"
+        @busy="imageBusy = $event"
+      />
+      <p v-if="saveError" role="alert" class="text-xs text-red-500">{{ saveError }}</p>
 
       <!-- Tab 2: Attributes -->
       <div
@@ -644,7 +707,7 @@ const submit = () => {
 
         <div class="flex gap-3">
           <button
-            @click="productStore.toggleModal(mode, false)"
+            @click="close"
             class="px-5 py-2.5 text-xs font-black text-gray-400 dark:text-slate-500 hover:bg-gray-100 dark:hover:bg-slate-800 rounded-xl transition"
             type="button"
           >
@@ -664,9 +727,9 @@ const submit = () => {
             v-else-if="canEditOrCreate"
             type="submit"
             class="px-6 py-2.5 text-xs font-black text-white bg-teal-500 hover:bg-teal-600 rounded-xl shadow-lg shadow-teal-500/20 transition active:scale-95 disabled:opacity-50"
-            :disabled="productStore.isLoading"
+            :disabled="saving || imageBusy"
           >
-            {{ mode === 'add' ? 'Create Product' : 'Update Product' }}
+            {{ saving ? 'Saving…' : mode === 'add' ? 'Create Product' : 'Update Product' }}
           </button>
         </div>
       </div>

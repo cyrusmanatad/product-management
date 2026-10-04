@@ -1,19 +1,21 @@
 import { ref } from 'vue'
+import axios from '@/utils/axios'
 
 export function useDownload() {
   const downloading = ref(false)
-
-  const downloadPdf = (endpoint: string) => {
+  async function downloadPdf(endpoint: string) {
     downloading.value = true
-
-    const token = localStorage.getItem('auth_token') ?? ''
-    const url = `http://localhost:8000/${endpoint}?token=${token}`
-
-    window.open(url, '_blank')
-
-    // Give UI feedback briefly
-    setTimeout(() => (downloading.value = false), 1500)
+    try {
+      const { data } = await axios.get(`/${endpoint.replace(/^\//, '')}`, { responseType: 'blob' })
+      const url = URL.createObjectURL(data)
+      const anchor = document.createElement('a')
+      anchor.href = url
+      anchor.download = 'orders-report.pdf'
+      anchor.click()
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } finally {
+      downloading.value = false
+    }
   }
-
   return { downloading, downloadPdf }
 }

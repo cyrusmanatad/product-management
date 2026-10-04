@@ -10,11 +10,11 @@ Instructions for AI agents and contributors working on this repository. These ma
 
 | Layer | Path | Stack |
 |-------|------|--------|
-| API | `backend/` | Laravel 12, PHP 8.2+, JWT, Spatie Permissions, SQLite |
+| API | `backend/` | Laravel 12, PHP 8.2+, JWT, Spatie Permissions, PostgreSQL |
 | SPA | `bentador/` | Vue 3, TypeScript, Pinia, Vue Router, Tailwind 4, Vite |
 | Proxy | `backend/nginx/` | NGINX → Vue dev server + PHP-FPM |
 
-`bentador` is a **git submodule**. After clone: `git submodule update --init --recursive`.
+`bentador/` is checked into this repository. Current vendor ownership and rollout requirements are documented in [TENANCY.md](./TENANCY.md).
 
 **App URL (Docker):** `http://localhost:8000`
 
@@ -79,7 +79,7 @@ npm run lint
 - **Validation:** Verify mobile, tablet, and desktop layouts for UI work.
 - **Linting:** Run ESLint/Prettier (frontend) and Pint/tests (backend) when touching those areas.
 - **Auth:** Frontend API calls must use `@/utils/axios` (JWT in `localStorage` as `auth_token`). Avoid raw `import axios from 'axios'` in stores unless headers are intentionally omitted.
-- **API prefix:** All protected routes live under `/api/v1/`.
+- **API prefix:** Vendor business routes live under `/api/v1/vendors/{vendor}/`; storefronts use `/api/v1/stores/{slug}/`. Missing vendor context must fail closed.
 
 ---
 
@@ -139,13 +139,14 @@ Entry points: Sidebar user menu, Order Entry header dropdown.
 
 ---
 
-## Known gaps (do not “fix” unless asked)
+## Vendor development requirements
 
-- `view inbox` permission missing in seeder; Inbox UI is mock data.
-- `AppServiceProvider` Gate checks `super-admin`; roles are named `Super Admin`.
-- Some stores import `axios` directly instead of `@/utils/axios`.
-- `bentador/Dockerfile` may be missing in submodule; verify before Docker builds.
-- Backend tests may fail on SQLite due to `md5()` generated column in migrations.
+- A vendor is a business; users join through memberships and one-use invitations.
+- Never bypass ownership with a platform role or use unscoped queries for business records.
+- Raw SQL must constrain vendor IDs. Jobs must use `WithinVendor` and caches must include vendor identity.
+- Run PostgreSQL isolation/concurrency tests for commerce or authorization changes.
+- Preserve historical prices, attribution, and currencies during migrations; do not seed demo data in production.
+- See [TENANCY.md](./TENANCY.md) for verification and the forward-only migration recovery procedure.
 
 ---
 

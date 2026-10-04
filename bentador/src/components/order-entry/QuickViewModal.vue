@@ -2,6 +2,7 @@
 import { ref, computed, watch } from 'vue'
 import type { Product } from '@/types/data-types'
 import BaseModal from '@/components/common/BaseModal.vue'
+import ProductImageCarousel from '@/components/product/ProductImageCarousel.vue'
 import { XMarkIcon, CheckCircleIcon, ShoppingCartIcon } from '@heroicons/vue/24/outline'
 import { StarIcon as StarIconSolid } from '@heroicons/vue/24/solid'
 
@@ -86,24 +87,25 @@ const handleAddToCart = () => {
 
 <template>
   <BaseModal :show="show" max-width="max-w-4xl" @close="emit('close')">
-    <div v-if="product" class="flex flex-col md:flex-row relative">
+    <div v-if="product" class="flex flex-col md:flex-row relative overflow-y-auto">
       <button
         class="absolute top-6 right-6 z-10 p-2 bg-white/80 dark:bg-dark-card/80 backdrop-blur rounded-full text-gray-500 hover:text-gray-900 dark:hover:text-white transition active:scale-95"
         @click="emit('close')"
+        type="button"
+        aria-label="Close product details"
       >
         <XMarkIcon class="w-6 h-6" />
       </button>
 
-      <div
-        class="md:w-1/2 bg-gray-50 dark:bg-slate-900/50 p-12 flex items-center justify-center relative overflow-hidden"
-      >
-        <div
-          class="absolute inset-0 opacity-10 blur-3xl bg-teal-500/20 rounded-full scale-150"
-        ></div>
-        <ShoppingCartIcon class="w-64 h-64 text-gray-300 dark:text-slate-700 relative z-10" />
+      <div class="md:w-1/2 md:shrink-0 bg-gray-50 dark:bg-slate-900/50 p-6 pt-16 md:pt-6">
+        <ProductImageCarousel
+          :key="`${product.id}-${show}`"
+          :images="product.images ?? []"
+          :title="product.title"
+        />
       </div>
 
-      <div class="md:w-1/2 p-8 lg:p-12 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar">
+      <div class="md:w-1/2 min-w-0 p-6 lg:p-8 flex flex-col custom-scrollbar">
         <div class="mb-6">
           <span
             class="px-4 py-1.5 bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 rounded-full text-[10px] font-black uppercase tracking-widest mb-4 inline-block"
@@ -169,7 +171,7 @@ const handleAddToCart = () => {
         </div>
 
         <div
-          class="mt-auto pt-8 border-t dark:border-dark-border flex items-center justify-between"
+          class="mt-auto pt-8 border-t dark:border-dark-border flex flex-wrap gap-4 items-center justify-between"
         >
           <div>
             <p class="text-xs text-gray-400 font-bold mb-1">
@@ -188,7 +190,7 @@ const handleAddToCart = () => {
           <button
             type="button"
             :disabled="currentStock === 0"
-            class="px-10 py-4 bg-teal-500 text-white rounded-2xl font-black text-sm transition-all shadow-xl flex items-center gap-3"
+            class="px-5 py-4 bg-teal-500 text-white rounded-2xl font-black text-sm transition-all shadow-xl flex items-center gap-3"
             :class="
               currentStock === 0
                 ? 'opacity-50 cursor-not-allowed'

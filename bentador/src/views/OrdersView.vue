@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
 import {
   ArrowDownTrayIcon,
   XMarkIcon,
   ExclamationTriangleIcon,
+  BanknotesIcon,
 } from '@heroicons/vue/24/outline'
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppHeader from '@/components/layouts/AppHeader.vue'
@@ -13,10 +14,68 @@ import { useOrderStore } from '@/stores/transactions'
 import TransactionsTable from '@/components/modules/sales/TransactionsTable.vue'
 import { ORDER_STATUS } from '@/types/enum'
 import { useDownload } from '@/composables/useDownload'
+import FormField from '@/components/ui/FormField.vue'
+import ActionButton from '@/components/ui/ActionButton.vue'
+import InlineMessage from '@/components/ui/InlineMessage.vue'
+import { useToastStore } from '@/stores/toast'
+import { useAuthStore } from '@/stores/auth'
 
 const orderStore = useOrderStore()
 const { downloading, downloadPdf } = useDownload()
+const toast = useToastStore()
+const auth = useAuthStore()
+const paymentSaving = ref(false)
 
+import axios from '@/utils/axios'
+const paymentReference = ref(''),
+  reversalReason = ref(''),
+  paymentError = ref('')
+const allowedStatuses = computed(() => {
+  const transitions: Record<string, string[]> = {
+    pending: ['pending', 'confirmed', 'cancelled'],
+    confirmed: ['confirmed', 'processing', 'cancelled'],
+    processing: ['processing', 'shipped', 'cancelled'],
+    shipped: ['shipped', 'delivered'],
+    delivered: ['delivered'],
+    cancelled: ['cancelled'],
+    refunded: ['refunded'],
+  }
+  return Object.values(ORDER_STATUS).filter((status) =>
+    transitions[orderStore.selectedOrder?.status ?? 'pending']?.includes(status.code),
+  )
+})
+async function recordPayment() {
+  paymentSaving.value = true
+  paymentError.value = ''
+  try {
+    await axios.post(`/api/v1/orders/${orderStore.selectedOrder?.id}/payments`, {
+      reference: paymentReference.value,
+    })
+    await orderStore.fetchOrders()
+    orderStore.modals.details = false
+    toast.addToast('Payment recorded successfully', 'success')
+  } catch {
+    paymentError.value = 'Payment could not be recorded.'
+  } finally {
+    paymentSaving.value = false
+  }
+}
+async function reversePayment(id: number) {
+  paymentSaving.value = true
+  paymentError.value = ''
+  try {
+    await axios.post(`/api/v1/orders/${orderStore.selectedOrder?.id}/payments/${id}/reverse`, {
+      reason: reversalReason.value,
+    })
+    await orderStore.fetchOrders()
+    orderStore.modals.details = false
+    toast.addToast('Payment record reversed', 'success')
+  } catch {
+    paymentError.value = 'Payment reversal could not be recorded.'
+  } finally {
+    paymentSaving.value = false
+  }
+}
 const orderStatus = ref('')
 
 const actionItems: ActionItem[] = [
@@ -34,6 +93,7 @@ watch(
   () => orderStore.selectedOrder,
   () => {
     orderStatus.value = orderStore.selectedOrder?.status || ''
+    paymentReference.value = reversalReason.value = paymentError.value = ''
   },
 )
 </script>
@@ -58,7 +118,7 @@ watch(
     <!-- Modals -->
     <BaseModal :show="orderStore.modals.details" @close="orderStore.modals.details = false">
       <div
-        class="p-6 border-b dark:border-dark-border flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/20"
+        class="p-6 border-b border-gray-100 dark:border-dark-border flex justify-between items-center bg-gray-50/50 dark:bg-slate-800/20"
       >
         <div>
           <h2 class="text-xl font-black text-gray-900 dark:text-white">Order Details</h2>
@@ -75,6 +135,77 @@ watch(
         </button>
       </div>
       <div class="p-6 space-y-6 overflow-y-auto custom-scrollbar">
+        <InlineMessage v-if="paymentError" kind="error">{{ paymentError }}</InlineMessage>
+        <form
+          v-if="
+            auth.hasPermission(['edit orders']) &&
+            orderStore.selectedOrder?.payment_status !== 'paid' &&
+            !['cancelled', 'refunded'].includes(orderStore.selectedOrder?.status ?? '')
+          "
+          @submit.prevent="recordPayment"
+          class="space-y-4 bg-gray-50 dark:bg-slate-800/30 border border-gray-100 dark:border-dark-border p-5 rounded-2xl"
+        >
+          <div class="flex items-center gap-3">
+            <div
+              class="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-500/10 text-teal-600 dark:text-teal-400 flex items-center justify-center"
+            >
+              <BanknotesIcon class="w-5 h-5" aria-hidden="true" />
+            </div>
+            <div>
+              <h3 class="text-sm font-bold text-gray-900 dark:text-white">Record payment</h3>
+              <p class="text-xs text-gray-500 dark:text-slate-400 mt-1">
+                Confirm receipt of the full order amount.
+              </p>
+            </div>
+          </div>
+          <FormField
+            id="payment-reference"
+            v-model="paymentReference"
+            label="Cash receipt or transfer reference"
+            required
+            maxlength="255"
+            placeholder="Receipt or bank reference"
+            :disabled="paymentSaving"
+          />
+          <ActionButton type="submit" :loading="paymentSaving" class="w-full sm:w-auto">{{
+            paymentSaving ? 'Recording payment...' : 'Record full payment'
+          }}</ActionButton>
+        </form>
+        <form
+          v-for="payment in orderStore.selectedOrder?.payments?.filter((p) => !p.reversed_at)"
+          :key="payment.id"
+          @submit.prevent="reversePayment(payment.id)"
+          class="space-y-4 bg-gray-50 dark:bg-slate-800/30 border border-gray-100 dark:border-dark-border p-5 rounded-2xl"
+        >
+          <div>
+            <h3 class="text-sm font-bold text-gray-900 dark:text-white">Recorded payment</h3>
+            <p class="text-xs text-gray-500 dark:text-slate-400 mt-1 break-all">
+              Payment reference: {{ payment.reference }}
+            </p>
+          </div>
+          <template v-if="auth.hasPermission(['edit orders'])">
+            <FormField
+              :id="`reversal-reason-${payment.id}`"
+              v-model="reversalReason"
+              label="Reversal reason"
+              required
+              maxlength="1000"
+              placeholder="Explain why this record needs reversing"
+              :disabled="paymentSaving"
+            />
+            <p class="text-xs text-gray-500 dark:text-slate-400">
+              Reversing this record does not send a refund.
+            </p>
+            <ActionButton
+              type="submit"
+              variant="danger"
+              :disabled="!reversalReason.trim()"
+              :loading="paymentSaving"
+              class="w-full sm:w-auto"
+              >Reverse payment record</ActionButton
+            >
+          </template>
+        </form>
         <div class="grid grid-cols-2 gap-6">
           <div>
             <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1"
@@ -92,13 +223,13 @@ watch(
               v-model="orderStatus"
               class="w-full px-3 py-2 bg-gray-50 dark:text-slate-400 dark:bg-slate-900 border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold focus:ring-2 focus:ring-teal-500/20 outline-none"
             >
-              <option v-for="status in ORDER_STATUS" :key="status.code" :value="status.code">
+              <option v-for="status in allowedStatuses" :key="status.code" :value="status.code">
                 {{ status.label }}
               </option>
             </select>
           </div>
         </div>
-        <div class="border-t dark:border-dark-border pt-4">
+        <div class="border-t border-gray-100 dark:border-dark-border pt-4">
           <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-3"
             >Order Items</label
           >
@@ -115,7 +246,7 @@ watch(
             </div>
           </div>
         </div>
-        <div class="border-t dark:border-dark-border pt-4">
+        <div class="border-t border-gray-100 dark:border-dark-border pt-4">
           <div class="space-y-3">
             <div class="flex justify-between items-center text-sm">
               <span class="text-gray-600 dark:text-slate-400"> Total</span>
@@ -127,7 +258,7 @@ watch(
         </div>
       </div>
       <div
-        class="p-6 bg-gray-50 dark:bg-slate-800/20 border-t dark:border-dark-border flex justify-end gap-3"
+        class="p-6 bg-gray-50 dark:bg-slate-800/20 border-t border-gray-100 dark:border-dark-border flex justify-end gap-3"
       >
         <button
           @click="orderStore.updateOrderStatus(orderStatus)"

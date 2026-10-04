@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -32,17 +33,20 @@ class CatalogProductResource extends JsonResource
                 'sku' => $variant->sku,
                 'price' => $variant->price,
                 'sale_price' => $variant->sale_price,
-                'attributes' => $variant->attributes,
+                'attributes' => $variant->attributes ?? (object) [],
                 'stock' => max(0, $onHand - $reserved),
             ];
         });
 
         return [
             'id' => $this->id,
+            'currency' => app(TenantContext::class)->vendor->currency,
             'base_sku' => $this->base_sku ?? '',
             'title' => $this->title,
             'description' => $this->description,
             'variants' => $variants,
+            'images' => ProductImageResource::collection($this->images),
+            'primary_image_url' => $this->images->first()?->publicUrl(),
             'category_id' => $this->category->id ?? 0,
             'category' => $this->category?->name ?? 'Uncategorized',
             'price' => $firstVariant?->price ?? 0,

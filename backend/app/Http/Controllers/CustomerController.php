@@ -4,85 +4,40 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\CustomerResource;
 use App\Models\User;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class CustomerController extends Controller
 {
+    private function customers()
+    {
+        return User::whereIn('id', DB::table('vendor_customers')->where('vendor_id', app(TenantContext::class)->id())->select('user_id'));
+    }
+
     public function index(Request $request)
     {
-        $query = User::query()
-            ->select(['id', 'name', 'email', 'created_at', 'is_active', 'last_login_at'])
-            ->with([
-                'orders:id,user_id,total,status,created_at',
-            ])
-            ->whereDoesntHave('roles')
-            ->orderByDesc('last_login_at');
-
+        $query = $this->customers()->with('orders')->orderBy('name');
         if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%");
-            });
+            $query->where(fn ($q) => $q->where('name', 'like', '%'.$request->search.'%')->orWhere('email', 'like', '%'.$request->search.'%'));
         }
 
-        // Filter by status
-        if ($request->filled('status')) {
-            match ($request->status) {
-                'active' => $query->where('is_active', true),
-                'inactive' => $query->where('is_active', false),
-                'new' => $query->where('created_at', '>=', now()->subDays(7)),
-                default => null,
-            };
-        }
-
-        return CustomerResource::collection($query->paginate($request->per_page ?? 10));
+        return CustomerResource::collection($query->paginate(min(100, max(1, (int) $request->input('per_page', 10)))));
     }
 
     public function show(User $user)
     {
-        $user->load([
-            'orders:id,user_id,order_number,total,status,payment_status,created_at',
-            'orders.items:id,order_id,product_name,sku,quantity,final_price,subtotal',
-        ]);
+        abort_unless($this->customers()->whereKey($user->id)->exists(), 404);
+        $user->load('orders.items');
 
         return new CustomerResource($user);
     }
 
     public function total()
     {
-        $totalCustomers = User::whereDoesntHave('roles')->count();
+        $total = $this->customers()->count();
+        $retained = $this->customers()->has('orders', '>', 1)->count();
 
-        // New customers in the last 7 days
-        $newCustomers = User::whereDoesntHave('roles')
-            ->where('created_at', '>=', now()->subDays(7))
-            ->count();
-
-        // Active — logged in within last 30 days
-        $activeCustomers = User::whereDoesntHave('roles')
-            ->where('last_login_at', '>=', now()->subDays(30))
-            ->count();
-
-        // Retention — customers who placed more than 1 order
-        $retainedCustomers = User::whereDoesntHave('roles')
-            ->withCount('orders')
-            ->having('orders_count', '>', 1) // ✅ correct way
-            ->get()
-            ->count();
-
-        // Retention rate — percentage of customers with more than 1 order
-        $retentionRate = $totalCustomers > 0
-            ? round(($retainedCustomers / $totalCustomers) * 100, 1)
-            : 0;
-
-        return response()->json([
-            'data' => [
-                'total' => $totalCustomers,
-                'new' => $newCustomers,
-                'active' => $activeCustomers,
-                'retention' => $retentionRate, // percentage e.g. 42.5
-                'retained' => $retainedCustomers,  // raw count
-            ],
-        ]);
+        return response()->json(['data' => ['total' => $total, 'new' => DB::table('vendor_customers')->where('vendor_id', app(TenantContext::class)->id())->where('created_at', '>=', now()->subDays(7))->count(), 'active' => $this->customers()->whereHas('orders', fn ($q) => $q->where('created_at', '>=', now()->subDays(30)))->count(), 'retained' => $retained, 'retention' => $total ? round($retained / $total * 100, 2) : 0]]);
     }
 }

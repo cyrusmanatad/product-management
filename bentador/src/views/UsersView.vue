@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import InlineMessage from '@/components/ui/InlineMessage.vue'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useUiStore } from '@/stores/ui'
 import {
@@ -18,12 +19,13 @@ import Pagination from '@/components/common/Pagination.vue'
 import TableSpinner from '@/components/ui/TableSpinner.vue'
 import { useDebounceFn } from '@vueuse/core'
 import { storeToRefs } from 'pinia'
-import axios from 'axios'
+import axios from '@/utils/axios'
 import { useRoleStore } from '@/stores/roleStore'
 import { useAuthStore } from '@/stores/auth'
 import { ROLES } from '@/types/enum'
 
 const uiStore = useUiStore()
+const invitationLink = ref('')
 const userStore = useUserStore()
 const roleStore = useRoleStore()
 const authStore = useAuthStore()
@@ -102,7 +104,8 @@ const handleCreateUser = async () => {
   clearErrors() // clear previous errors before new submit
 
   try {
-    await userStore.createUser({ ...formData })
+    const invitation = await userStore.createUser({ ...formData })
+    invitationLink.value = invitation.invitation_link
     handleClose() // close and reset only on success
   } catch (err: unknown) {
     // Map Laravel 422 validation errors to form fields
@@ -156,6 +159,13 @@ onMounted(async () => {
 
 <template>
   <div class="p-4 md:p-8">
+    <InlineMessage v-if="invitationLink" kind="success" class="mb-6">
+      <p class="font-bold">Staff invitation ready</p>
+      <p class="mt-1">Share this one-use link with the invited team member.</p>
+      <a :href="invitationLink" class="block mt-2 underline break-all font-medium">{{
+        invitationLink
+      }}</a>
+    </InlineMessage>
     <!-- HEADER -->
     <header
       class="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4"
@@ -185,7 +195,7 @@ onMounted(async () => {
         class="bg-teal-500 hover:bg-teal-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-2 shadow-lg shadow-teal-500/20 transition-all active:scale-95"
         type="button"
       >
-        <UserPlusIcon class="w-4 h-4" /> Create User
+        <UserPlusIcon class="w-4 h-4" /> Invite staff
       </button>
     </header>
 
@@ -412,7 +422,7 @@ onMounted(async () => {
           class="px-6 py-2.5 text-sm font-bold text-white bg-teal-500 hover:bg-teal-600 rounded-xl shadow-lg transition"
           type="button"
         >
-          {{ userStore.isLoading ? 'Creating...' : 'Create User' }}
+          {{ userStore.isLoading ? 'Inviting...' : 'Invite staff' }}
         </button>
       </div>
     </BaseModal>

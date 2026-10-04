@@ -33,8 +33,8 @@ class CustomerResource extends JsonResource
             'lv_raw' => $lifetimeValue, // raw for sorting/calculations
 
             // Activity
-            'last_login_at' => $this->last_login_at?->diffForHumans() ?? 'Never',
-            'last_login_raw' => $this->last_login_at?->toDateTimeString(),
+            'last_login_at' => null,
+            'last_login_raw' => null,
 
             // Status
             'status' => $this->resolveStatus(),
@@ -43,6 +43,7 @@ class CustomerResource extends JsonResource
 
             // Customer type
             'type' => $this->resolveCustomerType($totalOrders),
+            'order_history' => $this->orders,
         ];
     }
 

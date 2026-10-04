@@ -13,11 +13,7 @@ import {
 import Pagination from '../common/Pagination.vue'
 import { storeToRefs } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
-import {
-  getProductStatus,
-  ProductStatus,
-  ProductStatusLabel,
-} from '@/types/enum'
+import { getProductStatus, ProductStatus, ProductStatusLabel } from '@/types/enum'
 import { useAuthStore } from '@/stores/auth'
 import type { Status } from '@/types/data-types'
 import TableSpinner from '../ui/TableSpinner.vue'
@@ -412,6 +408,7 @@ onMounted(async () => {
                   <button
                     v-if="authStore.hasPermission(['edit products'])"
                     @click="productStore.toggleModal('edit', true, product)"
+                    :aria-label="`Edit ${product.title}`"
                     class="p-2 hover:bg-teal-50 dark:hover:bg-teal-500/10 text-gray-400 dark:text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 rounded-lg transition"
                     type="button"
                   >

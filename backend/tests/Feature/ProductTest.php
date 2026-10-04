@@ -13,6 +13,7 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    useVendor();
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 
     $this->category = Category::factory()->create();
@@ -28,17 +29,19 @@ beforeEach(function () {
         'delete products',
     ]);
 
+    joinVendor($this->user);
     $this->actingAs($this->user, 'api');
 });
 
 test('create product stores color and size variants with their prices', function () {
     $payload = shirtPayload($this->category->id, 'SHIRT');
 
-    $response = $this->postJson('/api/v1/products', $payload);
+    $response = $this->postJson('/api/v1/vendors/benta-door/products', $payload);
 
     $response->assertCreated()
         ->assertJsonPath('message', 'Product created successfully');
 
+    useVendor();
     $product = Product::query()->where('base_sku', 'SHIRT')->first();
 
     expect($product)->not->toBeNull()
@@ -70,11 +73,12 @@ test('create product stores color and size variants with their prices', function
 });
 
 test('editing a product updates that product and leaves the other product unchanged', function () {
-    $this->postJson('/api/v1/products', shirtPayload($this->category->id, 'SHIRT'))
+    $this->postJson('/api/v1/vendors/benta-door/products', shirtPayload($this->category->id, 'SHIRT'))
         ->assertCreated();
-    $this->postJson('/api/v1/products', shirtPayload($this->category->id, 'PANTS', 'Work Pants'))
+    $this->postJson('/api/v1/vendors/benta-door/products', shirtPayload($this->category->id, 'PANTS', 'Work Pants'))
         ->assertCreated();
 
+    useVendor();
     $shirt = Product::query()->where('base_sku', 'SHIRT')->firstOrFail();
     $pants = Product::query()->where('base_sku', 'PANTS')->firstOrFail();
 
@@ -86,11 +90,12 @@ test('editing a product updates that product and leaves the other product unchan
     $payload['variants'][0]['sale_price'] = 1400;
     $payload['variants'][0]['stock'] = 20;
 
-    $response = $this->putJson('/api/v1/products/'.$shirt->id, $payload);
+    $response = $this->putJson('/api/v1/vendors/benta-door/products/'.$shirt->id, $payload);
 
     $response->assertOk()
         ->assertJsonPath('message', 'Product updated successfully');
 
+    useVendor();
     $shirt->refresh()->load('variants.inventory');
     $pants->refresh()->load('variants.inventory');
 
@@ -115,17 +120,18 @@ test('editing a product updates that product and leaves the other product unchan
 });
 
 test('deleting a product removes that product and leaves the other product', function () {
-    $this->postJson('/api/v1/products', shirtPayload($this->category->id, 'SHIRT'))
+    $this->postJson('/api/v1/vendors/benta-door/products', shirtPayload($this->category->id, 'SHIRT'))
         ->assertCreated();
-    $this->postJson('/api/v1/products', shirtPayload($this->category->id, 'PANTS', 'Work Pants'))
+    $this->postJson('/api/v1/vendors/benta-door/products', shirtPayload($this->category->id, 'PANTS', 'Work Pants'))
         ->assertCreated();
 
+    useVendor();
     $shirt = Product::query()->where('base_sku', 'SHIRT')->firstOrFail();
     $pants = Product::query()->where('base_sku', 'PANTS')->firstOrFail();
     $shirtVariantIds = $shirt->variants()->pluck('id');
     $pantsVariantIds = $pants->variants()->pluck('id');
 
-    $response = $this->deleteJson('/api/v1/products/'.$shirt->id);
+    $response = $this->deleteJson('/api/v1/vendors/benta-door/products/'.$shirt->id);
 
     $response->assertOk()
         ->assertJsonPath('message', 'Product deleted successfully');
@@ -140,9 +146,10 @@ test('deleting a product removes that product and leaves the other product', fun
 
     foreach ($shirtVariantIds as $variantId) {
         $this->assertSoftDeleted('product_variants', ['id' => $variantId]);
-        $this->assertDatabaseMissing('inventories', ['variant_id' => $variantId]);
+        $this->assertDatabaseHas('inventories', ['variant_id' => $variantId]);
     }
 
+    useVendor();
     expect(ProductVariant::query()->whereIn('id', $pantsVariantIds)->count())->toBe(4);
 
     foreach ($pantsVariantIds as $variantId) {

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\DTOs\OrderData;
 use App\Enums\ProductStatus;
 use App\Http\Requests\CheckoutRequest;
+use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Services\OrderService;
 use Illuminate\Support\Facades\Auth;
@@ -18,6 +19,11 @@ class CheckoutController extends Controller
      * Place an order for the signed-in customer.
      * Discount, tax, and shipping are set here, not taken from the client.
      */
+    public function index()
+    {
+        return response()->json(['data' => Order::where('user_id', Auth::id())->with('items')->orderByDesc('id')->paginate(20)]);
+    }
+
     public function store(CheckoutRequest $request)
     {
         $payload = $request->validated();
@@ -44,7 +50,7 @@ class CheckoutController extends Controller
         $payload['notes'] = $payload['notes'] ?? null;
 
         $dto = OrderData::fromRequest($payload, Auth::id());
-        $order = $this->orderService->create($dto);
+        $order = $this->orderService->create($dto, $payload['idempotency_key'], hash('sha256', json_encode($payload)));
 
         return response()->json([
             'message' => 'Order created successfully',

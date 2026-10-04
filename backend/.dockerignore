@@ -1,0 +1,4 @@
+.env
+storage/framework/testing/
+storage/app/product-images/
+storage/logs/*.log

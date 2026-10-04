@@ -2,111 +2,81 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\VendorService;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
-use Spatie\Permission\Models\Permission;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Spatie\Permission\Models\Role;
 
 class RoleController extends Controller
 {
+    private function roles()
+    {
+        return Role::where('vendor_id', app(TenantContext::class)->id())->where('guard_name', 'api');
+    }
+
     public function index()
     {
-        $roles = Role::where('guard_name', 'api')
-            ->withCount('users')
-            ->with([
-                'permissions:id,name',
-                'users:id,name,email', // for avatars
-            ])
-            ->get()
-            ->map(fn ($role) => [
-                'id' => $role->id,
-                'name' => $role->name,
-                'description' => $role->desc,
-                'color' => $role->color,
-                'users_count' => $role->users_count,
-                'users' => $role->users->take(3)->map(fn ($u) => [
-                    'id' => $u->id,
-                    'name' => $u->name,
-                    'avatar' => "https://ui-avatars.com/api/?name={$u->name}&background=random&color=fff",
-                ]),
-                'permissions' => $role->permissions->pluck('name'),
-            ]);
+        $roles = $this->roles()->with('permissions')->get()->map(fn ($role) => ['id' => $role->id, 'name' => $role->name, 'description' => $role->desc, 'color' => $role->color, 'users_count' => DB::table('model_has_roles')->where('vendor_id', app(TenantContext::class)->id())->where('role_id', $role->id)->count(), 'users' => [], 'permissions' => $role->permissions->pluck('name')]);
 
         return response()->json(['data' => $roles]);
     }
 
+    private function validated(Request $request, ?Role $role = null): array
+    {
+        $data = $request->validate(['name' => ['required', 'string', 'max:100', Rule::unique('roles')->where('vendor_id', app(TenantContext::class)->id())->where('guard_name', 'api')->ignore($role?->id)], 'description' => 'required|string|max:500', 'permissions' => 'required|array', 'permissions.*' => ['string', 'distinct', Rule::exists('permissions', 'name')->where('guard_name', 'api')]]);
+        abort_if(in_array($data['name'], VendorService::PROTECTED_ROLES), 403);
+        abort_unless(collect($data['permissions'])->diff($request->user()->getAllPermissions()->pluck('name'))->isEmpty(), 403);
+
+        return $data;
+    }
+
+    private function target(Role $role): void
+    {
+        abort_unless((int) $role->vendor_id === app(TenantContext::class)->id() && $role->guard_name === 'api', 404);
+        abort_if(in_array($role->name, VendorService::PROTECTED_ROLES), 403);
+    }
+
     public function store(Request $request)
     {
-        $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:roles,name'],
-            'description' => ['required', 'string'],
-            'permissions' => ['required', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
-        ]);
+        $data = $this->validated($request);
 
-        $role = Role::create([
-            'name' => $request->name,
-            'desc' => $request->description,
-            'guard_name' => 'api',
-        ]);
+        return DB::transaction(function () use ($data) {
+            $role = Role::create(['vendor_id' => app(TenantContext::class)->id(), 'name' => $data['name'], 'desc' => $data['description'], 'guard_name' => 'api']);
+            $role->syncPermissions($data['permissions']);
+            VendorService::audit('role.created', ['role_id' => $role->id]);
 
-        $role->syncPermissions($request->permissions);
-
-        return response()->json([
-            'message' => 'Role created successfully',
-            'data' => [
-                'id' => $role->id,
-                'name' => $role->name,
-                'guard_name' => $role->guard_name,
-                'permissions' => $role->permissions->pluck('name'),
-            ],
-        ], 201);
+            return response()->json(['data' => $role->load('permissions')], 201);
+        });
     }
 
     public function update(Request $request, Role $role)
     {
-        $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['required', 'string'],
-            'permissions' => ['required', 'array'],
-            'permissions.*' => ['string', 'exists:permissions,name'],
-        ]);
+        $this->target($role);
+        $data = $this->validated($request, $role);
 
-        // Update role name
-        $role->update(['name' => $request->name, 'desc' => $request->description]);
+        return DB::transaction(function () use ($role, $data) {
+            $role->update(['name' => $data['name'], 'desc' => $data['description']]);
+            $role->syncPermissions($data['permissions']);
+            VendorService::audit('role.updated', ['role_id' => $role->id]);
 
-        // Sync permissions — removes old, adds new
-        $role->syncPermissions($request->permissions);
-
-        return response()->json([
-            'message' => 'Role updated successfully',
-            'data' => [
-                'id' => $role->id,
-                'name' => $role->name,
-                'permissions' => $role->permissions->pluck('name'),
-            ],
-        ]);
+            return response()->json(['data' => $role->load('permissions')]);
+        });
     }
 
     public function destroy(Role $role)
     {
+        $this->target($role);
+        abort_if(DB::table('model_has_roles')->where('vendor_id', app(TenantContext::class)->id())->where('role_id', $role->id)->exists(), 422, 'Reassign staff before deleting their role.');
         $role->delete();
+        VendorService::audit('role.deleted', ['role_id' => $role->id]);
 
-        return response()->json([
-            'message' => 'Role deleted successfully',
-        ]);
+        return response()->json(['message' => 'Role deleted.']);
     }
 
-    public function permissions()
+    public function permissions(Request $request)
     {
-        // $permissions = \Spatie\Permission\Models\Permission::where('guard_name', 'api')
-        //     ->get(['id', 'name'])
-        //     ->groupBy(fn($p) => str($p->name)->afterLast(' ')->title()) // group by module
-        //     ->map(fn($group) => $group->pluck('name'));
-
-        // Return flat array of permission names
-        $permissions = Permission::where('guard_name', 'api')
-            ->pluck('name'); // ['view products', 'edit products', ...]
-
-        return response()->json(['data' => $permissions]);
+        return response()->json(['data' => $request->user()->getAllPermissions()->pluck('name')]);
     }
 }

@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import axios from 'axios'
+import axios from '@/utils/axios'
 import type { Role } from '@/types/user-types'
 
 export const useRoleStore = defineStore('role', () => {

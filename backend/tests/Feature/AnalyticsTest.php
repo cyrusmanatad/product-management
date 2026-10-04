@@ -11,12 +11,14 @@ use Spatie\Permission\PermissionRegistrar;
 uses(RefreshDatabase::class);
 
 beforeEach(function () {
+    useVendor();
     app(PermissionRegistrar::class)->forgetCachedPermissions();
 
     Permission::findOrCreate('view analytics', 'api');
 
     $this->user = User::factory()->create();
     $this->user->givePermissionTo('view analytics');
+    joinVendor($this->user);
     $this->actingAs($this->user, 'api');
 });
 
@@ -27,7 +29,7 @@ test('revenue performance includes recent orders for the current week', function
     createOrder($this->user->id, 'ORD-WEEK-TUE', 80, 'cancelled', $monday->copy()->addDay()->setTime(11, 0));
     createOrder($this->user->id, 'ORD-LAST-WEEK', 400, 'delivered', $monday->copy()->subWeek()->setTime(9, 0));
 
-    $response = $this->getJson('/api/v1/analytics/revenue');
+    $response = $this->getJson('/api/v1/vendors/benta-door/analytics/revenue');
 
     $response->assertOk()
         ->assertJsonPath('data.categories', ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
@@ -43,6 +45,7 @@ function createOrder(int $userId, string $number, float $total, string $status, 
         'order_number' => $number,
         'user_id' => $userId,
         'total' => $total,
+        'payment_status' => 'paid',
         'status' => $status,
     ]);
 

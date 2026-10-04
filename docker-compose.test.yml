@@ -1,0 +1,36 @@
+name: bentador-tests
+services:
+  database:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: bentador_test
+      POSTGRES_USER: test
+      POSTGRES_PASSWORD: test
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U test -d bentador_test]
+      interval: 2s
+      timeout: 5s
+      retries: 15
+    tmpfs:
+      - /var/lib/postgresql/data
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.test
+    volumes:
+      - ./backend:/app
+    depends_on:
+      database:
+        condition: service_healthy
+    environment:
+      APP_ENV: testing
+      APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
+      DB_CONNECTION: pgsql
+      DB_HOST: database
+      DB_DATABASE: bentador_test
+      DB_USERNAME: test
+      DB_PASSWORD: test
+      CACHE_STORE: array
+      SESSION_DRIVER: array
+      JWT_SECRET: test-secret-for-isolation-suite-long-enough
+    command: php artisan test

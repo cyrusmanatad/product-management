@@ -35,7 +35,7 @@ class ProductVariantFactory extends Factory
             'uom' => $this->faker->randomElement(['pcs', 'box', 'kg', 'lt']),
             'price' => $this->faker->randomFloat(2, 500, 1000),
             'sale_price' => $this->faker->randomFloat(2, 400, 500),
-            'currency' => $this->faker->currencyCode(),
+            'currency' => 'PHP',
             'attributes' => json_encode($attributes),
         ];
     }

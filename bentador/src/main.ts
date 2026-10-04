@@ -21,7 +21,13 @@ app.directive('outside-click', {
   },
 })
 
-app.use(createPinia())
+const pinia = createPinia()
+pinia.use(({ store }) => {
+  if (['auth', 'tenant', 'cart', 'ui', 'toast'].includes(store.$id)) return
+  const initial = JSON.parse(JSON.stringify(store.$state))
+  window.addEventListener('tenant:reset', () => store.$patch(JSON.parse(JSON.stringify(initial))))
+})
+app.use(pinia)
 app.use(router)
 
 app.mount('#app')

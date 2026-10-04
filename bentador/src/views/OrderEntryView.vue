@@ -13,7 +13,12 @@ import QuickViewModal from '@/components/order-entry/QuickViewModal.vue'
 import ToastNotifications from '@/components/order-entry/ToastNotifications.vue'
 import LogoutModal from '@/components/product/modals/LogoutModal.vue'
 import type { Product } from '@/types/data-types'
-import { rand } from '@vueuse/core'
+import { useTenantStore } from '@/stores/tenant'
+import { useRoute } from 'vue-router'
+import axios from '@/utils/axios'
+import { storePath } from '@/utils/tenantContext'
+const tenant = useTenantStore()
+const route = useRoute()
 
 const productStore = useProductStore()
 const cartStore = useCartStore()
@@ -77,7 +82,17 @@ const categoriesList = computed(() => {
 
 // Actions
 const handleAddToCart = (product: Product) => {
-  cartStore.addToCart(product)
+  if (product.variants.length > 1 && !product.variants.some((v) => v.sku === product.base_sku)) {
+    handleQuickView(product)
+    return
+  }
+  try {
+    cartStore.addToCart(product)
+  } catch {
+    toastStore.addToast('Choose an available variant.', 'error')
+    return
+  }
+  isQuickViewOpen.value = false
   toastStore.addToast(`Added ${product.title} to cart!`)
 }
 
@@ -114,11 +129,23 @@ const onAuthSuccess = () => {
 onMounted(async () => {
   await productStore.fetchCatalogCategories()
   await productStore.fetchCatalogProducts()
+  if (typeof route.query.product === 'string') {
+    try {
+      const { data } = await axios.get(
+        storePath(`catalog/products/${encodeURIComponent(route.query.product)}`),
+      )
+      handleQuickView(data.data)
+    } catch {
+      toastStore.addToast('This product is currently unavailable.', 'error')
+    }
+  }
 })
 </script>
 
 <template>
   <div class="min-h-screen bg-[#F9FAFB] dark:bg-dark-bg text-gray-800 dark:text-slate-200">
+    <p v-if="tenant.error" role="alert" class="p-8">{{ tenant.error }}</p>
+    <h1 class="p-4 text-2xl font-bold">{{ tenant.store?.name }}</h1>
     <FilterSidebar
       :is-open="isSidebarOpen"
       :categories="categoriesList"
@@ -141,11 +168,11 @@ onMounted(async () => {
 
       <div class="p-4 lg:p-8">
         <HeroBanner
-          title="Summer Tech Sale <br>Up to 50% Off"
-          subtitle="Limited Time Offer"
-          description="Upgrade your digital lifestyle with our premium electronics and accessories. Get free shipping on all orders over &#8369; 500."
-          button-text="Shop the Sale"
-          @action="searchQuery = 'Electronics'"
+          :title="tenant.store?.name ?? 'Store'"
+          subtitle="Browse our catalog"
+          description="Choose your items and place an order. Payment is confirmed by the store."
+          button-text="Browse products"
+          @action="resetFilters"
         />
 
         <!-- RESULTS INFO -->
@@ -180,7 +207,7 @@ onMounted(async () => {
             v-for="product in filteredProducts"
             :key="product.id"
             :product="product"
-            :rating="rand(1, 5)"
+            :rating="0"
             @add-to-cart="handleAddToCart"
             @quick-view="handleQuickView"
           />

@@ -2,206 +2,85 @@
 
 namespace App\Http\Controllers;
 
-use App\Http\Requests\StoreUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
-use App\Services\UserService;
+use App\Services\InvitationService;
+use App\Services\VendorService;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Role;
 
 class UserController extends Controller
 {
-    public function __construct(protected UserService $userService) {}
+    private function members()
+    {
+        return User::whereIn('id', DB::table('vendor_memberships')->where('vendor_id', app(TenantContext::class)->id())->select('user_id'));
+    }
+
+    private function target(User $user): void
+    {
+        abort_unless($this->members()->whereKey($user->id)->exists(), 404);
+        abort_if($user->id === auth('api')->id() || $user->hasRole('Owner'), 403, 'Protected membership.');
+    }
 
     public function index(Request $request)
     {
-        $query = User::query()
-            ->select(['id', 'name', 'email', 'created_at', 'last_login_at', 'is_active'])
-            ->with([
-                'roles:id,name',
-            ])
-            ->whereHas('roles')
-            ->orderByDesc('last_login_at');
-
+        $query = $this->members()->with('roles')->orderBy('name');
         if ($request->filled('search')) {
-            $search = $request->search;
-
-            $query->where(function ($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhereHas('roles', function ($q2) use ($search) {
-                        $q2->where('name', 'like', "%{$search}%");
-                    });
-            });
+            $query->where(fn ($q) => $q->where('name', 'like', '%'.$request->search.'%')->orWhere('email', 'like', '%'.$request->search.'%'));
         }
 
         return UserResource::collection($query->paginate(10));
     }
 
-    public function store(StoreUserRequest $request)
+    public function store(Request $request, InvitationService $service)
     {
-        try {
-            $result = $this->userService->create($request->validated());
+        $data = $request->validate(['email' => 'required|email|max:255', 'role' => 'required|string']);
+        $role = Role::where('vendor_id', app(TenantContext::class)->id())->where('guard_name', 'api')->where('name', $data['role'])->firstOrFail();
+        $this->assignable($request, $role);
 
-            $user = $result['user'];
-            $plainPassword = $result['password'];
-
-            // Send welcome email with generated password
-            // $user->notify(new WelcomeUserNotification($plainPassword));
-
-            return response()->json([
-                'message' => 'User created successfully',
-                'data' => new UserResource($user),
-            ], 201);
-
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Failed to create user',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return response()->json($service->create(app(TenantContext::class)->vendor, $data['email'], $role->name), 201);
     }
 
-    public function update_status(Request $request, User $user)
+    private function assignable(Request $request, Role $role): void
     {
-        // Pass $user as second argument
-        $this->authorize('update', $user);
-
-        $request->validate([
-            'is_active' => ['required', 'integer'],
-        ]);
-
-        // Prevent deactivating yourself
-        if ($request->user()->id === $user->id) {
-            return response()->json([
-                'message' => 'You cannot change your own status.',
-            ], 422);
-        }
-
-        $user->update([
-            'is_active' => $request->is_active,
-        ]);
-
-        return response()->json([
-            'message' => 'User status updated successfully',
-            'user' => $user,
-            'is_active' => $request->is_active,
-        ]);
+        abort_if(in_array($role->name, VendorService::PROTECTED_ROLES), 403);
+        abort_unless($role->permissions->pluck('name')->diff($request->user()->getAllPermissions()->pluck('name'))->isEmpty(), 403);
     }
 
     public function update_role(Request $request, User $user)
     {
-        $request->validate([
-            'role' => [
-                'required',
-                'string',
-                'exists:roles,name',
-            ],
-        ]);
+        $this->target($user);
+        $data = $request->validate(['role' => 'required|string']);
+        $role = Role::where('vendor_id', app(TenantContext::class)->id())->where('guard_name', 'api')->where('name', $data['role'])->firstOrFail();
+        $this->assignable($request, $role);
+        $user->syncRoles([$role]);
+        VendorService::audit('staff.role_changed', ['user_id' => $user->id, 'role' => $role->name]);
 
-        // Prevent changing Super Admin role unless you are Super Admin
-        if (
-            $user->hasRole(User::ROLE_SUPER_ADMIN) &&
-            ! auth()->user()->hasRole(User::ROLE_SUPER_ADMIN)
-        ) {
-            return response()->json([
-                'message' => 'You are not authorized to change a Super Admin role.',
-            ], 403);
-        }
+        return response()->json(['data' => new UserResource($user->fresh())]);
+    }
 
-        // Prevent assigning Super Admin role unless you are Super Admin
-        if (
-            $request->role === User::ROLE_SUPER_ADMIN &&
-            ! auth()->user()->hasRole(User::ROLE_SUPER_ADMIN)
-        ) {
-            return response()->json([
-                'message' => 'You are not authorized to assign Super Admin role.',
-            ], 403);
-        }
+    public function update_status(Request $request, User $user)
+    {
+        $this->target($user);
+        $data = $request->validate(['is_active' => 'required|boolean']);
+        DB::table('vendor_memberships')->where('vendor_id', app(TenantContext::class)->id())->where('user_id', $user->id)->update(['is_active' => $data['is_active'], 'updated_at' => now()]);
+        VendorService::audit('staff.status_changed', ['user_id' => $user->id, ...$data]);
 
-        // Prevent changing your own role
-        if ($user->id === auth()->id()) {
-            return response()->json([
-                'message' => 'You cannot change your own role.',
-            ], 403);
-        }
-
-        // Sync role — removes old role and assigns new one
-        $user->syncRoles([$request->role]);
-
-        return response()->json([
-            'message' => 'User role updated successfully',
-            'data' => [
-                'id' => $user->id,
-                'name' => $user->name,
-                'email' => $user->email,
-                'roles' => $user->getRoleNames(),
-            ],
-        ]);
+        return response()->json(['message' => 'Membership updated.']);
     }
 
     public function destroy(Request $request, User $user)
     {
-        // Authorization
-        if (! $request->user()->hasPermissionTo('delete users')) {
-            return response()->json([
-                'message' => 'Unauthorized action',
-            ], 403);
-        }
+        $this->target($user);
+        $request->merge(['is_active' => false]);
 
-        // Prevent self-deletion
-        if ($request->user()->id === $user->id) {
-            return response()->json([
-                'message' => 'You cannot delete your own account.',
-            ], 422);
-        }
-
-        // Prevent deleting Super Admin unless you are Super Admin
-        if (
-            $user->hasRole(User::ROLE_SUPER_ADMIN) &&
-            ! $request->user()->hasRole(User::ROLE_SUPER_ADMIN)
-        ) {
-            return response()->json([
-                'message' => 'You are not authorized to delete a Super Admin.',
-            ], 403);
-        }
-
-        try {
-            DB::transaction(function () use ($user) {
-                // Detach roles first, then delete
-                // Only needed if cascade is NOT set on model_has_roles
-                $user->roles()->detach();
-                $user->delete();            // soft delete if model uses SoftDeletes
-            });
-
-            return response()->json([
-                'message' => 'User deleted successfully',
-            ]);
-
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Failed to delete user',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return $this->update_status($request, $user);
     }
 
     public function total()
     {
-        $roleCounts = Role::withCount('users')->get()
-            ->mapWithKeys(fn ($role) => [
-                $role->name => $role->users_count,
-            ]);
-
-        return response()->json([
-            'data' => [
-                'total' => User::role([User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN, 'Support', 'Inventory Staff'])->count(),
-                'admin' => User::role([User::ROLE_ADMIN, User::ROLE_SUPER_ADMIN])->count(),
-                'non_admin' => User::role(['Support', 'Inventory Staff'])->count(),
-                'active' => User::count(),
-                'by_role' => $roleCounts, // standby not yet used
-            ],
-        ]);
+        return response()->json(['data' => ['total' => $this->members()->count(), 'admin' => $this->members()->role(['Owner', 'Admin'])->count(), 'non_admin' => $this->members()->role(['Support', 'Inventory Staff'])->count(), 'active' => DB::table('vendor_memberships')->where('vendor_id', app(TenantContext::class)->id())->where('is_active', true)->count()]]);
     }
 }

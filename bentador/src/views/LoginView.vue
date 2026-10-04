@@ -16,8 +16,8 @@ const uiStore = useUiStore()
 const router = useRouter()
 const route = useRoute()
 
-const email = ref('cyrusmanatad@bentadoor.com')
-const password = ref('Password@1234')
+const email = ref('')
+const password = ref('')
 const isLoading = ref(false)
 const auth = useAuthStore()
 
@@ -35,17 +35,13 @@ const handleLogin = async () => {
   isLoading.value = false
 
   if (success) {
+    if (auth.user?.must_reset_password) return
     const redirect = route.query.redirect
-    if (typeof redirect === 'string' && redirect !== '') {
-      router.push(redirect)
-      return
-    }
-
-    if (auth.user?.roles.length === 0 || auth.hasRole('Client')) {
-      router.push({ name: 'order-entry' })
-    } else {
-      router.push({ name: 'analytics' })
-    }
+    router.push(
+      typeof redirect === 'string' && redirect.startsWith('/') && !redirect.startsWith('//')
+        ? redirect
+        : '/vendors',
+    )
   }
 }
 </script>
@@ -130,10 +126,10 @@ const handleLogin = async () => {
                   class="block text-[10px] font-black text-gray-400 dark:text-slate-500 uppercase tracking-widest"
                   >Password</label
                 >
-                <a
-                  href="#"
+                <RouterLink
+                  to="/reset-password"
                   class="text-[10px] font-black text-teal-600 dark:text-teal-400 uppercase tracking-widest hover:underline"
-                  >Forgot?</a
+                  >Forgot?</RouterLink
                 >
               </div>
               <div class="relative group">
@@ -165,12 +161,7 @@ const handleLogin = async () => {
               >
             </label>
 
-            <p
-              v-if="auth.loginError"
-              id="login-error"
-              role="alert"
-              class="text-sm text-red-500"
-            >
+            <p v-if="auth.loginError" id="login-error" role="alert" class="text-sm text-red-500">
               {{ auth.loginError }}
             </p>
 

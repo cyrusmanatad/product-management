@@ -5,8 +5,10 @@ namespace Database\Seeders;
 use App\Models\Order;
 use App\Models\ProductVariant;
 use App\Models\User;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 class OrderSeeder extends Seeder
 {
@@ -57,6 +59,12 @@ class OrderSeeder extends Seeder
 
         foreach ($blueprints as $index => $blueprint) {
             $customer = $customers[$index % $customers->count()];
+            DB::table('vendor_customers')->insertOrIgnore([
+                'vendor_id' => app(TenantContext::class)->id(),
+                'user_id' => $customer->id,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
             $items = $this->itemsFor($variants, $blueprint['quantities'], $variantIndex);
             $subtotal = round($items->sum(fn (array $item) => (float) $item['subtotal']), 2);
             $discount = $index % 3 === 0 ? 50 : 0;

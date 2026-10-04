@@ -4,11 +4,11 @@ namespace App\Providers;
 
 use App\Listeners\LogUserLogin;
 use App\Models\Product;
-use App\Models\User;
 use App\Observers\ProductVariantObserver;
+use App\Tenancy\TenantContext;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -18,7 +18,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->scoped(TenantContext::class);
     }
 
     /**
@@ -26,13 +26,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        // Seeded role name is "Super Admin". Gate::before does not run for Spatie route middleware.
-        Gate::before(function ($user, $ability) {
-            if ($user->hasRole(User::ROLE_SUPER_ADMIN)) {
-                return true;
-            }
-        });
-
+        ResetPassword::createUrlUsing(fn ($user, $token) => rtrim(config('app.url'), '/').'/reset-password?token='.$token.'&email='.urlencode($user->email));
         Product::observe(ProductVariantObserver::class);
         Event::listen(Login::class, LogUserLogin::class);
     }

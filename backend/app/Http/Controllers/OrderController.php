@@ -9,6 +9,8 @@ use App\Http\Requests\UpdateOrderRequest;
 use App\Http\Resources\OrdersTransactionResource;
 use App\Models\Order;
 use App\Services\OrderService;
+use App\Services\VendorService;
+use App\Tenancy\TenantContext;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -27,9 +29,10 @@ class OrderController extends Controller
             ->select(['id', 'user_id', 'order_number', 'total', 'status', 'payment_status', 'payment_method', 'created_at'])
             ->with([
                 'user:id,name',
+                'payments',
                 'items:id,order_id,sku,product_name,quantity,subtotal',
             ])
-            ->orderByDesc('created_at');
+            ->whereNull('archived_at')->orderByDesc('created_at');
 
         if ($request->filled('status')) {
             $query->where('status', $request->status);
@@ -72,7 +75,7 @@ class OrderController extends Controller
         } catch (\Throwable $e) {
             return response()->json([
                 'message' => 'Failed to create order',
-                'error' => $e->getMessage(),
+                'error' => 'The order could not be saved.',
             ], 500);
         }
     }
@@ -82,32 +85,16 @@ class OrderController extends Controller
      */
     public function update(UpdateOrderRequest $request, Order $order)
     {
-        try {
-            $order = $order->update($request->validated());
-
-            return response()->json([
-                'message' => 'Order updated successfully',
-                'data' => $order,
-            ], 201);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'message' => 'Failed to update order',
-                'error' => $e->getMessage(),
-            ], 500);
-        }
+        return response()->json(['data' => $this->orderService->transition($order, $request->validated('status'))]);
     }
 
-    /**
-     * Remove the specified resource from storage.
-     */
     public function destroy(Order $order)
     {
-        $order = $order->delete();
+        abort_unless(in_array($order->status, ['cancelled', 'delivered', 'refunded']), 422, 'Finish or cancel the order before archiving.');
+        $order->update(['archived_at' => now()]);
+        VendorService::audit('order.archived', [], $order->id);
 
-        return response()->json([
-            'message' => 'Order updated successfully',
-            'data' => $order,
-        ], 201);
+        return response()->json(['message' => 'Order archived.']);
     }
 
     /**
@@ -121,7 +108,7 @@ class OrderController extends Controller
                 'total' => Order::count(),
                 'pending' => Order::where('status', OrderStatus::PENDING)->count(),
                 'completed' => Order::whereIn('status', [OrderStatus::SHIPPED, OrderStatus::DELIVERED])->count(),
-                'revenue' => Order::sum('total'),
+                'revenue' => Order::where('payment_status', 'paid')->where('currency', app(TenantContext::class)->vendor->currency)->sum('total'),
             ],
         ]);
     }

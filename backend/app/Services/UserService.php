@@ -2,33 +2,10 @@
 
 namespace App\Services;
 
-use App\Models\User;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
-
 class UserService
 {
-    public function __construct() {}
-
-    public function create(array $data): array
+    public function create(array $data): never
     {
-        return DB::transaction(function () use ($data) {
-            $plainPassword = 'Password@1234';
-
-            $user = User::create([
-                'name' => $data['name'],
-                'email' => $data['email'],
-                'password' => Hash::make($plainPassword),
-                'email_verified_at' => now(), // admin-created users are pre-verified
-            ]);
-
-            // Assign role via Spatie
-            $user->assignRole($data['role']);
-
-            return [
-                'user' => $user->fresh(),
-                'password' => $plainPassword, // return plain for email notification
-            ];
-        });
+        throw new \LogicException('Staff must join through a vendor invitation.');
     }
 }

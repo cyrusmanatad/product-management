@@ -8,10 +8,9 @@ import {
   CheckCircleIcon,
   CreditCardIcon,
   BanknotesIcon,
-  QrCodeIcon,
 } from '@heroicons/vue/24/outline'
 import { useOrderStore } from '@/stores/transactions'
-import { PaymentMethod } from '@/types/enum'
+import InlineMessage from '@/components/ui/InlineMessage.vue'
 
 const orderStore = useOrderStore()
 
@@ -29,55 +28,46 @@ const toastStore = useToastStore()
 
 const paymentMethods = [
   {
-    id: PaymentMethod.GCASH,
-    name: 'GCash',
-    icon: QrCodeIcon,
-    color: 'text-blue-600',
-    bg: 'bg-blue-50 dark:bg-blue-500/10',
-  },
-  {
-    id: PaymentMethod.PAYMAYA,
-    name: 'PayMaya',
-    icon: CreditCardIcon,
-    color: 'text-green-600',
-    bg: 'bg-green-50 dark:bg-green-500/10',
-  },
-  {
-    id: PaymentMethod.COD,
-    name: 'Cash on Delivery',
+    id: 'cash',
+    name: 'Cash',
     icon: BanknotesIcon,
-    color: 'text-gray-600',
-    bg: 'bg-orange-50 dark:bg-gray-500/10',
+    color: 'text-gray-600 dark:text-slate-300',
+    bg: 'bg-gray-50 dark:bg-slate-800/50',
   },
   {
-    id: PaymentMethod.BANK,
-    name: 'Credit/Debit Card',
+    id: 'bank_transfer',
+    name: 'Bank transfer',
     icon: CreditCardIcon,
-    color: 'text-orange-600',
-    bg: 'bg-orange-50 dark:bg-orange-500/10',
+    color: 'text-teal-600 dark:text-teal-400',
+    bg: 'bg-teal-50 dark:bg-teal-500/10',
   },
 ]
-
-const selectedMethod = ref<PaymentMethod>(PaymentMethod.GCASH)
+const selectedMethod = ref('cash')
+const checkoutError = ref('')
 
 const handleConfirmCheckout = async () => {
-  // Simulate payment processing
-  await orderStore.submitOrder(cartStore.items, {
-    currency: 'PHP',
-    payment_method: selectedMethod.value,
-    shipping_method: 'pickup',
-    shipping_fee: 0,
-    discount: 0,
-    tax: 0,
-    notes: '',
-  })
+  checkoutError.value = ''
+  try {
+    await orderStore.submitOrder(cartStore.items, {
+      currency: 'PHP',
+      payment_method: selectedMethod.value,
+      shipping_method: 'pickup',
+      shipping_fee: 0,
+      discount: 0,
+      tax: 0,
+      notes: '',
+    })
 
-  toastStore.addToast('Order Placed Successfully!', 'success')
+    toastStore.addToast('Order Placed Successfully!', 'success')
 
-  cartStore.clearCart()
-  cartStore.toggleCart(false)
-  emit('success')
-  emit('close')
+    cartStore.clearCart()
+    cartStore.toggleCart(false)
+    emit('success')
+    emit('close')
+  } catch {
+    checkoutError.value =
+      'Order could not be placed. Check stock and try again; your cart has been kept.'
+  }
 }
 </script>
 
@@ -128,7 +118,7 @@ const handleConfirmCheckout = async () => {
             >
           </div>
           <p class="text-[10px] text-gray-400 font-medium italic">
-            Including all applicable taxes and shipping fees.
+            Final prices are validated by the store.
           </p>
         </div>
 
@@ -164,7 +154,7 @@ const handleConfirmCheckout = async () => {
               <div class="flex-1">
                 <p class="text-sm font-black text-gray-900 dark:text-white">{{ method.name }}</p>
                 <p class="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
-                  Fast & Secure
+                  Confirmed manually by the store
                 </p>
               </div>
               <div
@@ -182,6 +172,9 @@ const handleConfirmCheckout = async () => {
         </div>
       </div>
 
+      <InlineMessage v-if="checkoutError" kind="error" class="mx-6 mb-6">{{
+        checkoutError
+      }}</InlineMessage>
       <!-- Footer -->
       <div
         class="p-6 border-t border-gray-100 dark:border-dark-border bg-gray-50/50 dark:bg-slate-800/30"
@@ -192,10 +185,10 @@ const handleConfirmCheckout = async () => {
           class="w-full py-4 bg-teal-500 text-white rounded-2xl font-black text-sm transition-all shadow-xl flex items-center justify-center gap-2 hover:bg-teal-600 shadow-teal-500/30 active:scale-95"
           @click="handleConfirmCheckout"
         >
-          Confirm & Pay &#8369;{{ cartStore.cartTotal.toLocaleString() }}
+          Place order — &#8369;{{ cartStore.cartTotal.toLocaleString() }}
         </button>
         <p class="text-center text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-4">
-          Secure encrypted transaction
+          Payment is pending until confirmed by the store.
         </p>
       </div>
     </div>

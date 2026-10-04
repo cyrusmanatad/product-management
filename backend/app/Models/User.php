@@ -24,6 +24,8 @@ class User extends Authenticatable implements JWTSubject
      *
      * @var list<string>
      */
+    protected $attributes = ['is_active' => true, 'is_platform_admin' => false, 'must_reset_password' => false, 'token_version' => 0];
+
     protected $fillable = [
         'name',
         'email',
@@ -54,6 +56,10 @@ class User extends Authenticatable implements JWTSubject
             'email_verified_at' => 'datetime',
             'password' => 'hashed',
             'last_login_at' => 'datetime',
+            'is_active' => 'boolean',
+            'is_platform_admin' => 'boolean',
+            'must_reset_password' => 'boolean',
+            'token_version' => 'integer',
         ];
     }
 
@@ -104,6 +110,6 @@ class User extends Authenticatable implements JWTSubject
      */
     public function getJWTCustomClaims()
     {
-        return [];
+        return ['ver' => (int) $this->token_version];
     }
 }

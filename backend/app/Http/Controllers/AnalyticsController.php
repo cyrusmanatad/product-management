@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\OrderStatus;
 use App\Models\Order;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -55,6 +56,7 @@ class AnalyticsController extends Controller
 
         Order::query()
             ->whereBetween('created_at', [$start, $end])
+            ->where('payment_status', 'paid')->where('currency', app(TenantContext::class)->vendor->currency)
             ->whereNotIn('status', [
                 OrderStatus::CANCELLED->value,
                 OrderStatus::REFUNDED->value,
@@ -75,6 +77,9 @@ class AnalyticsController extends Controller
     public function categories()
     {
         $categories = DB::table('orders')
+            ->where('orders.vendor_id', app(TenantContext::class)->id())
+            ->where('orders.payment_status', 'paid')->where('orders.currency', app(TenantContext::class)->vendor->currency)
+            ->whereNull('orders.deleted_at')
             ->join('order_items', 'orders.id', '=', 'order_items.order_id')
             ->join('product_variants', 'order_items.variant_id', '=', 'product_variants.id')
             ->join('products', 'product_variants.product_id', '=', 'products.id')
@@ -124,6 +129,7 @@ class AnalyticsController extends Controller
 
         // Net Revenue
         $currentRevenue = Order::whereBetween('created_at', [$currentStart, now()])
+            ->where('payment_status', 'paid')->where('currency', app(TenantContext::class)->vendor->currency)
             ->whereNotIn('status', [
                 OrderStatus::CANCELLED->value,
                 OrderStatus::REFUNDED->value,
@@ -131,6 +137,7 @@ class AnalyticsController extends Controller
             ->sum('total');
 
         $previousRevenue = Order::whereBetween('created_at', [$previousStart, $previousEnd])
+            ->where('payment_status', 'paid')->where('currency', app(TenantContext::class)->vendor->currency)
             ->whereNotIn('status', [
                 OrderStatus::CANCELLED->value,
                 OrderStatus::REFUNDED->value,
@@ -139,6 +146,7 @@ class AnalyticsController extends Controller
 
         // Average Order Value
         $currentOrderCount = Order::whereBetween('created_at', [$currentStart, now()])
+            ->where('payment_status', 'paid')->where('currency', app(TenantContext::class)->vendor->currency)
             ->whereNotIn('status', [
                 OrderStatus::CANCELLED->value,
                 OrderStatus::REFUNDED->value,
@@ -146,6 +154,7 @@ class AnalyticsController extends Controller
             ->count();
 
         $previousOrderCount = Order::whereBetween('created_at', [$previousStart, $previousEnd])
+            ->where('payment_status', 'paid')->where('currency', app(TenantContext::class)->vendor->currency)
             ->whereNotIn('status', [
                 OrderStatus::CANCELLED->value,
                 OrderStatus::REFUNDED->value,
@@ -155,32 +164,6 @@ class AnalyticsController extends Controller
         $currentAov = $currentOrderCount > 0 ? $currentRevenue / $currentOrderCount : 0;
         $previousAov = $previousOrderCount > 0 ? $previousRevenue / $previousOrderCount : 0;
 
-        // Store Sessions (Unique Visitors via login activity)
-        $currentSessions = DB::table('user_logins')
-            ->whereBetween('logged_in_at', [$currentStart, now()])
-            ->count();
-
-        $previousSessions = DB::table('user_logins')
-            ->whereBetween('logged_in_at', [$previousStart, $previousEnd])
-            ->count();
-
-        // Conversion Rate (Sessions that led to an order)
-        $currentConversions = Order::whereBetween('created_at', [$currentStart, now()])
-            ->distinct('user_id')
-            ->count('user_id');
-
-        $previousConversions = Order::whereBetween('created_at', [$previousStart, $previousEnd])
-            ->distinct('user_id')
-            ->count('user_id');
-
-        $currentConvRate = $currentSessions > 0
-            ? round(($currentConversions / $currentSessions) * 100, 2)
-            : 0;
-
-        $previousConvRate = $previousSessions > 0
-            ? round(($previousConversions / $previousSessions) * 100, 2)
-            : 0;
-
         return response()->json([
             'data' => [
                 'net_revenue' => [
@@ -188,16 +171,6 @@ class AnalyticsController extends Controller
                     'raw' => $currentRevenue,
                     'trend' => $this->trend($currentRevenue, $previousRevenue),
                     'currency' => 'PHP',
-                ],
-                'conversion_rate' => [
-                    'value' => $currentConvRate.'%',
-                    'raw' => $currentConvRate,
-                    'trend' => $this->trend($currentConvRate, $previousConvRate),
-                ],
-                'store_sessions' => [
-                    'value' => number_format($currentSessions),
-                    'raw' => $currentSessions,
-                    'trend' => $this->trend($currentSessions, $previousSessions),
                 ],
                 'avg_order_value' => [
                     'value' => number_format($currentAov, 2),

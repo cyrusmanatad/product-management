@@ -7,7 +7,7 @@ import ToastNotifications from '@/components/order-entry/ToastNotifications.vue'
 <template>
   <LogoutModal />
   <ToastNotifications />
-  <RouterView />
+  <RouterView :key="$route.params.slug ? String($route.params.slug) : undefined" />
 </template>
 
 <style>
