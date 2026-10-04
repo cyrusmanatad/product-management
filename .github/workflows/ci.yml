@@ -16,6 +16,17 @@ on:
       - main
 
 jobs:
+  deployment:
+    name: Deployment Script CI
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: Test deployment input handling and health checks
+        run: python3 scripts/test_deploy_workflow.py
+
   backend:
     name: Backend CI
     runs-on: ubuntu-latest

@@ -46,8 +46,10 @@ jobs:
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name || inputs.tag }}
         run: |
+          set -euo pipefail
+          deployment_log="$(mktemp)"
           [[ "$RELEASE_TAG" =~ ^[a-zA-Z0-9._/-]+$ ]] || exit 1
-          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} bash -s -- "$RELEASE_TAG" <<'EOF'
+          ssh ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} bash -s -- "$RELEASE_TAG" <<'EOF' | tee "$deployment_log"
             set -euo pipefail
             umask 077
             release_tag="$1"
@@ -56,14 +58,16 @@ jobs:
             backup="backups/pre-${release_tag//\//-}-$(date -u +%Y%m%dT%H%M%SZ).dump"
             compose=(docker compose --env-file .env.prod -f docker-compose.prod.yml)
 
+            # exec -T still attaches stdin. Non-import commands must not consume
+            # the remaining SSH script; imports below read explicit backup files.
             # Close ingress before taking the consistent pre-migration snapshot.
             "${compose[@]}" stop nginx
-            "${compose[@]}" exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB"' > "$backup"
+            "${compose[@]}" exec -T postgres sh -c 'pg_dump -Fc -U "$POSTGRES_USER" "$POSTGRES_DB"' < /dev/null > "$backup"
             "${compose[@]}" exec -T postgres pg_restore --list < "$backup" > /dev/null
-            "${compose[@]}" exec -T backend tar -C /var/www/html/storage -czf - . > "$backup.storage.tgz"
+            "${compose[@]}" exec -T backend tar -C /var/www/html/storage -czf - . < /dev/null > "$backup.storage.tgz"
             tar -tzf "$backup.storage.tgz" > /dev/null
             baseline_sql='SELECT (SELECT count(*) FROM products), (SELECT count(*) FROM orders), (SELECT count(*) FROM order_items), (SELECT COALESCE(sum(total),0) FROM orders), (SELECT COALESCE(sum(stock_quantity),0) FROM inventories);'
-            "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" > "$backup.before"
+            "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" < /dev/null > "$backup.before"
 
             git fetch origin tag "$release_tag"
             git checkout --force "$release_tag"
@@ -71,13 +75,38 @@ jobs:
             # NGINX stays stopped until schema and reconciliation checks pass.
             "${compose[@]}" up -d postgres backend frontend
             "${compose[@]}" exec -T backend tar -C /var/www/html/storage -xzf - < "$backup.storage.tgz"
-            "${compose[@]}" exec -T backend chown -R www-data:www-data /var/www/html/storage
-            "${compose[@]}" exec -T backend php artisan migrate --force
-            "${compose[@]}" exec -T backend php artisan tenancy:verify
-            "${compose[@]}" exec -T backend php artisan permission:cache-reset
-            "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" > "$backup.after"
+            "${compose[@]}" exec -T backend chown -R www-data:www-data /var/www/html/storage < /dev/null
+            "${compose[@]}" exec -T backend php artisan migrate --force < /dev/null
+            "${compose[@]}" exec -T backend php artisan tenancy:verify < /dev/null
+            "${compose[@]}" exec -T backend php artisan permission:cache-reset < /dev/null
+            "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" < /dev/null > "$backup.after"
             cmp "$backup.before" "$backup.after"
             "${compose[@]}" up -d nginx
+            # Starting a container alone does not prove that HTTP requests work.
+            ready=false
+            for attempt in {1..12}; do
+              if "${compose[@]}" exec -T nginx sh -ec '
+                wget -q -T 10 -O /dev/null http://127.0.0.1/
+                wget -q -T 10 -O /dev/null http://127.0.0.1/api/v1/homepage/stores
+                wget -q -T 10 -O /dev/null http://127.0.0.1/api/v1/homepage/featured-products
+              ' < /dev/null; then
+                ready=true
+                break
+              fi
+              sleep 5
+            done
+            if [ "$ready" != true ]; then
+              "${compose[@]}" ps -a
+              "${compose[@]}" logs --tail=80 nginx backend frontend
+              exit 1
+            fi
             "${compose[@]}" ps
             git describe --tags --exact-match
+            printf '%s\n' 'BENTADOR_DEPLOYMENT_COMPLETE'
           EOF
+          # Reject a zero SSH exit code if a command swallowed the script tail.
+          grep -Fxq 'BENTADOR_DEPLOYMENT_COMPLETE' "$deployment_log"
+          for path in / /api/v1/homepage/stores /api/v1/homepage/featured-products; do
+            curl --fail --silent --show-error --retry 3 --retry-delay 5 --max-time 20 \
+              --output /dev/null "https://bentador.cyrusmanatad.com$path"
+          done
