@@ -27,7 +27,15 @@ case "$*" in
 esac
 '''
 SSH = '#!/bin/bash\nshift\nexec "$@"\n'
-GIT = '#!/bin/bash\nprintf "git %s\\n" "$*" >> "$MOCK_LOG"\nprintf "v-test\\n"\n'
+GIT = r'''#!/bin/bash
+set -eu
+printf 'git %s\n' "$*" >> "$MOCK_LOG"
+if [[ " $* " == *" checkout "* ]]; then
+  mkdir -p bootstrap
+  printf '<?php // checkout fixture\n' > bootstrap/app.php
+fi
+printf 'v-test\n'
+'''
 CURL = '#!/bin/bash\nprintf "curl %s\\n" "$*" >> "$MOCK_LOG"\n[[ "${FAIL_PUBLIC_HTTP:-0}" != 1 ]]\n'
 
 
@@ -57,6 +65,11 @@ class DeploymentWorkflowTest(unittest.TestCase):
             environment.update({key: str(value) for key, value in failures.items()})
             result = subprocess.run(['bash'], input=script, text=True, capture_output=True,
                                     env=environment, timeout=10, cwd=server)
+            source = server / 'bootstrap/app.php'
+            result.source_modes = (source.stat().st_mode & 0o777,
+                                   source.parent.stat().st_mode & 0o777) if source.exists() else None
+            result.backup_modes = [path.stat().st_mode & 0o777
+                                   for path in (server / 'backups').iterdir()]
             calls = (root / 'calls').read_text()
             return result, calls
 
@@ -70,6 +83,13 @@ class DeploymentWorkflowTest(unittest.TestCase):
         positions = [calls.index(phase) for phase in phases]
         self.assertEqual(positions, sorted(positions))
         self.assertEqual(calls.count('curl '), 3)
+
+    def test_checkout_is_readable_and_backups_remain_private(self):
+        result, _ = self.run_deployment()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.source_modes, (0o644, 0o755))
+        self.assertTrue(result.backup_modes)
+        self.assertTrue(all(mode == 0o600 for mode in result.backup_modes))
 
     def test_stdin_consumption_cannot_report_a_successful_deployment(self):
         result, calls = self.run_deployment(swallow_input=True)

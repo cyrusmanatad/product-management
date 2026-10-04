@@ -16,11 +16,22 @@ WORKDIR /var/www/html
 # Copy existing application directory contents to the working directory
 COPY . /var/www/html
 
-# Install Laravel dependencies without dev packages
+# Normalize copied permissions so PHP-FPM can read source and dependencies.
+# Only Laravel runtime directories should be writable by the application worker.
 RUN composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader \
+    && chown -R root:www-data /var/www/html \
+    && chmod -R u=rwX,g=rX,o= /var/www/html \
     && chown -R www-data:www-data \
         /var/www/html/storage \
+        /var/www/html/bootstrap/cache \
+    && chmod -R u=rwX,g=rwX,o= \
+        /var/www/html/storage \
         /var/www/html/bootstrap/cache
+
+# Catch unreadable bootstrap/dependency files using the actual PHP-FPM worker identity.
+USER www-data
+RUN php artisan --version
+USER root
 
 # Expose port 9000 and start php-fpm server (for FastCGI Process Manager)
 COPY docker-entrypoint.sh /usr/local/bin/laravel-entrypoint

@@ -69,9 +69,12 @@ jobs:
             baseline_sql='SELECT (SELECT count(*) FROM products), (SELECT count(*) FROM orders), (SELECT count(*) FROM order_items), (SELECT COALESCE(sum(total),0) FROM orders), (SELECT COALESCE(sum(stock_quantity),0) FROM inventories);'
             "${compose[@]}" exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -At -c "$1"' sh "$baseline_sql" < /dev/null > "$backup.before"
 
+            # Keep backups private without making checked-out application files unreadable.
+            umask 022
             git fetch origin tag "$release_tag"
             git checkout --force "$release_tag"
             "${compose[@]}" build
+            umask 077
             # NGINX stays stopped until schema and reconciliation checks pass.
             "${compose[@]}" up -d postgres backend frontend
             "${compose[@]}" exec -T backend tar -C /var/www/html/storage -xzf - < "$backup.storage.tgz"
