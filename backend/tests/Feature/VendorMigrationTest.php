@@ -19,7 +19,7 @@ test('legacy migration preserves records totals attribution roles and default-pa
     DB::setDefaultConnection('rehearsal');
     try {
         foreach (glob(database_path('migrations/*.php')) as $path) {
-            if (str_contains($path, '2026_10_03')) {
+            if (basename($path) >= '2026_10_03_000001_add_vendor_isolation.php') {
                 continue;
             }
             (require $path)->up();

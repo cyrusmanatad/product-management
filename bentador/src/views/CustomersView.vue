@@ -12,6 +12,7 @@ import {
 import BaseModal from '@/components/common/BaseModal.vue'
 import AppHeader from '@/components/layouts/AppHeader.vue'
 import type { ActionItem } from '@/types/header-types'
+import { useAuthStore } from '@/stores/auth'
 import { useCustomerStore } from '@/stores/customer'
 import type { Customer } from '@/types/customer-types'
 import Pagination from '@/components/common/Pagination.vue'
@@ -19,6 +20,13 @@ import { storeToRefs } from 'pinia'
 import { useDebounceFn } from '@vueuse/core'
 
 const customerStore = useCustomerStore()
+
+const authStore = useAuthStore()
+const canEditCustomer = () =>
+  authStore.hasPermission(['view customers']) && authStore.hasPermission(['edit customers'])
+const statusError = ref('')
+const statusSuccess = ref('')
+const editStatus = ref('Active')
 
 const addModal = ref(false)
 const editModal = ref(false)
@@ -46,21 +54,40 @@ const handleClearDateRange = () => {
 
 const handleEditModal = (customer: Customer) => {
   selectedCustomer.value = customer
-  selectedStatus.value = customer.status
+  editStatus.value = customer.status
+  statusError.value = ''
   editModal.value = true
 }
 
 const handleDeleteModal = (customer: Customer) => {
   selectedCustomer.value = customer
+  statusError.value = ''
   deleteModal.value = true
 }
 
-const handleUpdateStatus = async () => {
-  let _status = 1
-  if (selectedStatus.value === 'Inactive') _status = 0
-  await customerStore.updateCustomer(selectedCustomer.value?.id || 0, _status)
-  customerStore.fetchCustomers()
-  editModal.value = false
+const saveStatus = async (blocked: boolean) => {
+  if (!selectedCustomer.value || customerStore.loading) return
+  statusError.value = ''
+  statusSuccess.value = ''
+  try {
+    await customerStore.updateCustomer(selectedCustomer.value.id, blocked)
+    editModal.value = false
+    deleteModal.value = false
+    statusSuccess.value = blocked
+      ? 'Customer blocked at this store.'
+      : 'Customer unblocked at this store.'
+    await Promise.all([customerStore.fetchCustomers(), customerStore.fetchStatistics()])
+  } catch {
+    statusError.value = 'Could not update the customer. Please retry.'
+  }
+}
+const handleUpdateStatus = () => {
+  if (editStatus.value !== selectedCustomer.value?.status) {
+    editModal.value = false
+    deleteModal.value = true
+  } else {
+    editModal.value = false
+  }
 }
 
 const actionItems: ActionItem[] = [
@@ -104,11 +131,29 @@ onMounted(async () => {
       :action-items="actionItems"
     >
       <template #description>
-        Managing <span class="text-teal-600 dark:text-teal-400 font-bold">8,420</span> verified
-        customers
+        Managing
+        <span class="text-teal-600 dark:text-teal-400 font-bold">{{
+          customerStore.totalCustomers === null
+            ? '—'
+            : customerStore.totalCustomers.toLocaleString('en-US')
+        }}</span>
+        store customers
       </template>
     </AppHeader>
 
+    <p
+      v-if="customerStore.statisticsError"
+      role="alert"
+      class="mb-4 text-sm text-red-600 dark:text-red-400"
+    >
+      {{ customerStore.statisticsError }}
+      <button type="button" class="underline" @click="customerStore.fetchStatistics()">
+        Retry
+      </button>
+    </p>
+    <p v-if="statusSuccess" role="status" class="mb-4 text-sm text-teal-700 dark:text-teal-300">
+      {{ statusSuccess }}
+    </p>
     <!-- STATS GRID -->
     <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-8">
       <div
@@ -288,7 +333,9 @@ onMounted(async () => {
                     <p class="text-sm font-bold text-gray-900 dark:text-white">
                       {{ customer.name }}
                     </p>
-                    <p class="text-[11px] text-gray-400 dark:text-slate-500">ID: #CUST-8821</p>
+                    <p class="text-[11px] text-gray-400 dark:text-slate-500">
+                      ID: #{{ customer.id }}
+                    </p>
                   </div>
                 </div>
               </td>
@@ -296,13 +343,13 @@ onMounted(async () => {
                 <p class="text-xs font-medium text-gray-600 dark:text-slate-400">
                   {{ customer.email }}
                 </p>
-                <p class="text-[10px] text-gray-400">+1 (555) 000-0000</p>
+                <p class="text-[10px] text-gray-400">Phone unavailable</p>
               </td>
               <td class="px-6 py-4 text-xs text-gray-500 dark:text-slate-400">
                 {{ customer.joined }}
               </td>
               <td class="px-6 py-4 text-xs text-gray-500 dark:text-slate-400">
-                {{ customer.last_login_at }}
+                {{ customer.last_login_at ?? 'Unavailable' }}
               </td>
               <td class="px-6 py-4 text-center font-bold text-gray-700 dark:text-slate-300">
                 {{ customer.orders }}
@@ -333,6 +380,8 @@ onMounted(async () => {
               <td class="px-6 py-4 text-right">
                 <div class="flex items-center justify-end gap-2">
                   <button
+                    v-if="canEditCustomer()"
+                    :aria-label="`Edit status for ${customer.name}`"
                     @click="handleEditModal(customer)"
                     class="p-2 hover:bg-teal-50 dark:hover:bg-teal-500/10 text-gray-400 dark:text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 rounded-lg transition"
                     type="button"
@@ -340,6 +389,8 @@ onMounted(async () => {
                     <PencilSquareIcon class="w-4 h-4" />
                   </button>
                   <button
+                    v-if="canEditCustomer()"
+                    :aria-label="`${customer.status === 'Blocked' ? 'Unblock' : 'Block'} ${customer.name}`"
                     @click="handleDeleteModal(customer)"
                     class="p-2 hover:bg-red-50 dark:hover:bg-red-500/10 text-gray-400 dark:text-slate-500 hover:text-red-600 dark:hover:text-red-400 rounded-lg transition"
                     type="button"
@@ -378,6 +429,9 @@ onMounted(async () => {
           <XMarkIcon class="w-5 h-5" />
         </button>
       </div>
+      <p v-if="statusError" role="alert" class="px-6 pt-4 text-sm text-red-600">
+        {{ statusError }}
+      </p>
       <form class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
         <div>
           <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
@@ -440,6 +494,9 @@ onMounted(async () => {
           <XMarkIcon class="w-5 h-5" />
         </button>
       </div>
+      <p v-if="statusError" role="alert" class="px-6 pt-4 text-sm text-red-600">
+        {{ statusError }}
+      </p>
       <form class="p-6 space-y-5 overflow-y-auto custom-scrollbar">
         <div>
           <label class="block text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1.5"
@@ -448,6 +505,8 @@ onMounted(async () => {
           <input
             type="email"
             :value="selectedCustomer?.email"
+            aria-label="Customer email"
+            readonly
             class="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-dark-border rounded-xl dark:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-teal-700"
           />
         </div>
@@ -458,11 +517,12 @@ onMounted(async () => {
               >Status</label
             >
             <select
-              v-model="selectedStatus"
+              v-model="editStatus"
+              aria-label="Customer status"
               class="w-full px-4 py-3 bg-gray-50 dark:bg-slate-900 border border-gray-200 dark:border-dark-border rounded-xl text-xs font-bold dark:text-white"
             >
               <option value="Active">Active</option>
-              <option value="Inactive">Inactive</option>
+              <option value="Blocked">Blocked</option>
             </select>
           </div>
         </div>
@@ -471,6 +531,7 @@ onMounted(async () => {
         class="p-6 bg-gray-50 dark:bg-slate-800/20 border-t dark:border-dark-border flex justify-end gap-3"
       >
         <button
+          :disabled="customerStore.loading"
           @click="handleUpdateStatus"
           class="px-6 py-2.5 text-sm font-bold text-white bg-teal-500 hover:bg-teal-600 rounded-xl shadow-lg transition"
           type="button"
@@ -487,19 +548,31 @@ onMounted(async () => {
         >
           <ShieldExclamationIcon class="w-10 h-10" />
         </div>
-        <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">Block Customer?</h2>
+        <h2 class="text-xl font-black text-gray-900 dark:text-white mb-2">
+          {{ selectedCustomer?.status === 'Blocked' ? 'Unblock Customer?' : 'Block Customer?' }}
+        </h2>
         <p class="text-sm text-gray-500 dark:text-slate-400 mb-8 leading-relaxed">
-          Are you sure you want to block
+          Are you sure you want to
+          {{ selectedCustomer?.status === 'Blocked' ? 'unblock' : 'block' }}
           <span class="font-bold text-gray-900 dark:text-white">{{ selectedCustomer?.name }}</span
-          >? They will lose access to their account immediately.
+          >? This only changes whether they can place new orders at this store. Their account and
+          existing orders remain available.
         </p>
+        <p v-if="statusError" role="alert" class="mb-4 text-sm text-red-600">{{ statusError }}</p>
         <div class="flex flex-col gap-3">
           <button
-            @click="deleteModal = false"
+            :disabled="customerStore.loading"
+            @click="saveStatus(selectedCustomer?.status !== 'Blocked')"
             class="w-full py-3.5 bg-red-500 hover:bg-red-600 text-white font-black rounded-2xl shadow-xl transition active:scale-95"
             type="button"
           >
-            Yes, Block Customer
+            {{
+              customerStore.loading
+                ? 'Saving…'
+                : selectedCustomer?.status === 'Blocked'
+                  ? 'Yes, Unblock Customer'
+                  : 'Yes, Block Customer'
+            }}
           </button>
           <button
             @click="deleteModal = false"

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\ProductStatus;
 use App\Http\Resources\ProductResource;
+use App\Models\OrderItem;
 use App\Models\Product;
 use App\Services\ProductService;
 use Illuminate\Http\Request;
@@ -26,6 +27,7 @@ class ProductInventoryController extends Controller
         return response()->json([
             'data' => [
                 'total_products' => Product::count(),
+                'total_units_sold' => (int) OrderItem::whereHas('order', fn ($query) => $query->withTrashed()->where('payment_status', 'paid')->where('status', '!=', 'cancelled'))->sum('quantity'),
                 'total_published' => Product::where('status', ProductStatus::PUBLISHED)->count(),
                 'total_draft' => Product::where('status', ProductStatus::DRAFT)->count(),
                 'total_inactive' => Product::where('status', ProductStatus::INACTIVE)->count(),

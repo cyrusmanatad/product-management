@@ -1,0 +1,7 @@
+
+[mcp_servers.laravel-boost]
+command = "sh"
+args = [
+    "-c",
+    'boost_project_root=$(git rev-parse --show-toplevel) || exit 1; exec docker compose -f "$boost_project_root/docker-compose.yml" exec -T backend php artisan boost:mcp',
+]

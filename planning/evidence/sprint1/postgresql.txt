@@ -1,0 +1,102 @@
+ Container bentador-tests-database-1 Running 
+ Container bentador-tests-database-1 Waiting 
+ Container bentador-tests-database-1 Healthy 
+ Container bentador-tests-backend-run-bc0018cb2f40 Creating 
+ Container bentador-tests-backend-run-bc0018cb2f40 Created 
+
+   PASS  Tests\Feature\AnalyticsTest
+  ✓ revenue performance includes recent orders for the current week      2.43s  
+
+   PASS  Tests\Feature\AuthTest
+  ✓ user requires email when registering                                 0.10s  
+  ✓ user can register                                                    0.18s  
+  ✓ user cannot register with existing email                             0.10s  
+  ✓ user can login                                                       0.11s  
+  ✓ user cannot login with invalid credentials                           0.10s  
+  ✓ unknown email gets the same login error                              0.07s  
+
+   PASS  Tests\Feature\CheckoutConcurrencyTest
+  ✓ concurrent PostgreSQL checkouts cannot oversell and concurrent retr… 3.28s  
+
+   PASS  Tests\Feature\CustomerStatusTest
+  ✓ blocking is reversible vendor scoped and preserves identity members… 1.27s  
+  ✓ customer status requires both customer permissions and a current ve… 1.06s  
+  ✓ customer status rejects invalid status and identity fields without…  0.78s  
+
+   PASS  Tests\Feature\HomepageTest
+  ✓ guests browse active stores with search and pagination without priv… 0.72s  
+  ✓ only platform administrators can select or remove homepage products  0.80s  
+  ✓ homepage curates public products across vendors and keeps selection… 0.89s  
+  ✓ unpublished deleted suspended and variant-ineligible products are h… 1.03s  
+  ✓ featured product deep links resolve product slugs only inside their… 0.99s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.89s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.73s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.83s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.85s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.81s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.89s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.78s  
+
+   PASS  Tests\Feature\ProductImagesTest
+  ✓ owner uploads multiple images chooses cover and catalog keeps inter… 0.85s  
+  ✓ default cover persists across uploads and deleting cover promotes a… 0.79s  
+  ✓ uploads validate files indexes and maximum product image count with… 0.75s  
+  ✓ images cannot be edited previewed or read through another product o… 0.91s  
+  ✓ guests and platform administrators cannot manage store product imag… 0.53s  
+  ✓ private draft and unavailable store files stay private while owner…  0.82s  
+  ✓ failed database save cleans up files and restores previous primary…  0.61s  
+  ✓ homepage shows the selected cover and the database prevents duplica… 0.83s  
+
+   PASS  Tests\Feature\ProductTest
+  ✓ create product stores color and size variants with their prices      0.34s  
+  ✓ editing a product updates that product and leaves the other product… 0.50s  
+  ✓ deleting a product removes that product and leaves the other produc… 0.47s  
+
+   PASS  Tests\Feature\ProfileTest
+  ✓ authenticated user can view profile                                  0.15s  
+  ✓ authenticated user can update profile                                0.21s  
+  ✓ user can update password with valid current password                 0.15s  
+  ✓ user cannot update password with invalid current password            0.09s  
+
+   PASS  Tests\Feature\SeederTest
+  ✓ category seeds are owned by the selected vendor and can be repeated  0.17s  
+  ✓ full demo seeds create vendor owned data and reset required staff a… 2.45s  
+  ✓ failed demo seeding rolls back records and clears vendor context     0.40s  
+
+   PASS  Tests\Feature\StatisticsTest
+  ✓ inventory sales count paid non-cancelled units including archived h… 0.23s  
+  ✓ customer statistics report store relationships recent orders and a…  0.13s  
+
+   PASS  Tests\Feature\StorefrontTest
+  ✓ guests can list published products and not drafts                    0.13s  
+  ✓ a customer can check out without the staff create orders permission  0.24s  
+  ✓ a guest cannot check out                                             0.08s  
+
+   PASS  Tests\Feature\TenancyTest
+  ✓ public and staff catalogs isolate vendors including guessed product… 0.69s  
+  ✓ checkout rejects foreign variants duplicates and wrong currency      0.67s  
+  ✓ checkout is idempotent and uses exact server prices                  0.66s  
+  ✓ shared customers see only their own history in each store and staff… 0.81s  
+  ✓ staff URLs resolve store slugs and reject database IDs and unknown…  0.74s  
+  ✓ platform vendor status URLs use slugs including suspended stores     0.83s  
+  ✓ permissions and revocation are evaluated per membership              0.78s  
+  ✓ vendors cannot invite platform roles or edit protected owner roles   0.55s  
+  ✓ suspension and disabled accounts deny access immediately             0.62s  
+  ✓ cancellation restores inventory once and archives preserve orders    0.70s  
+  ✓ manual payments are audited scoped reversible and idempotent         0.80s  
+  ✓ invitations are expiring single use and cannot reset an existing ac… 0.62s  
+  ✓ platform administrators create vendors and owner invitations withou… 0.73s  
+  ✓ database constraints reject cross-vendor categories and roles        0.55s  
+  ✓ order lists reports statistics and category writes remain vendor sc… 1.44s  
+  ✓ default password accounts require an email reset and old tokens are… 0.60s  
+  ✓ background vendor context is cleared even if the job fails           0.48s  
+
+   PASS  Tests\Feature\UserControllerTest
+  ✓ me endpoint returns authenticated user                               0.07s  
+
+   PASS  Tests\Feature\VendorMigrationTest
+  ✓ legacy migration preserves records totals attribution roles and def… 1.50s  
+
+  Tests:    65 passed (665 assertions)
+  Duration: 45.70s
+

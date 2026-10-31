@@ -14,16 +14,25 @@ services:
     tmpfs:
       - /var/lib/postgresql/data
   backend:
+    user: '${TEST_UID:-1000}:${TEST_GID:-1000}'
     build:
       context: ./backend
       dockerfile: Dockerfile.test
+      args:
+        TEST_UID: ${TEST_UID:-1000}
+        TEST_GID: ${TEST_GID:-1000}
     volumes:
       - ./backend:/app
+      - test_vendor:/app/vendor
+    tmpfs:
+      - /app/storage:uid=${TEST_UID:-1000},gid=${TEST_GID:-1000},mode=0700
+      - /app/bootstrap/cache:uid=${TEST_UID:-1000},gid=${TEST_GID:-1000},mode=0700
     depends_on:
       database:
         condition: service_healthy
     environment:
       APP_ENV: testing
+      COMPOSER_HOME: /tmp/composer
       APP_KEY: base64:MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=
       DB_CONNECTION: pgsql
       DB_HOST: database
@@ -33,4 +42,7 @@ services:
       CACHE_STORE: array
       SESSION_DRIVER: array
       JWT_SECRET: test-secret-for-isolation-suite-long-enough
-    command: php artisan test
+    command: composer test
+
+volumes:
+  test_vendor:

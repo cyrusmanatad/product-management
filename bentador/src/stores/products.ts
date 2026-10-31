@@ -7,7 +7,8 @@ import type {
   VariantInput,
 } from '@/types/data-types'
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
+import { contextRevision } from '@/utils/tenantContext'
 import axios from '@/utils/axios' // axios.js file
 import { ProductStatus, ProductStatusLabel } from '@/types/enum'
 import { useFormatter } from '@/composables/useFormatter'
@@ -31,17 +32,34 @@ export const useProductStore = defineStore('products', () => {
   ])
 
   const stats = ref<Stat[]>([
-    { label: 'Total Products', val: '0', color: 'bg-teal-500', desc: 'Last 365 days' },
-    { label: 'Products Sales', val: '0', color: 'bg-orange-400', desc: 'Last 365 days' },
-    { label: 'Stock Products', val: '0', color: 'bg-green-500', desc: 'Last 365 days' },
+    { label: 'Total Products', val: '—', color: 'bg-teal-500', desc: 'Current catalog' },
     {
-      label: 'Out of Stock',
-      val: '0',
+      label: 'Units Sold',
+      val: '—',
+      color: 'bg-orange-400',
+      desc: 'Paid, non-cancelled orders · all time',
+    },
+    { label: 'Available Units', val: '—', color: 'bg-green-500', desc: 'On hand minus reserved' },
+    {
+      label: 'Marked Out of Stock',
+      val: '—',
       color: 'bg-red-400',
       isAlert: true,
-      desc: 'Critical alert',
+      desc: 'Products with out-of-stock status',
     },
   ])
+
+  const statisticsError = ref('')
+  watch(
+    contextRevision,
+    () => {
+      stats.value.forEach((stat) => {
+        stat.val = '—'
+      })
+      statisticsError.value = ''
+    },
+    { flush: 'sync' },
+  )
 
   const selectedProduct = ref<Product | null>(null)
 
@@ -66,6 +84,11 @@ export const useProductStore = defineStore('products', () => {
   }
 
   const fetchStatistics = async () => {
+    const revision = contextRevision.value
+    stats.value.forEach((stat) => {
+      stat.val = '—'
+    })
+    statisticsError.value = ''
     try {
       isLoading.value = true
 
@@ -74,11 +97,13 @@ export const useProductStore = defineStore('products', () => {
       const { data } = total.data
 
       if (stats.value[0]) stats.value[0].val = formatStock(data.total_products)
-      if (stats.value[1]) stats.value[1].val = '0'
+      if (stats.value[1] && data.total_units_sold !== undefined)
+        stats.value[1].val = formatStock(data.total_units_sold)
       if (stats.value[2]) stats.value[2].val = formatStock(data.total_available)
       if (stats.value[3]) stats.value[3].val = formatStock(data.total_out_stock)
-    } catch (error) {
-      console.error('Failed to fetch products', error)
+    } catch {
+      if (revision === contextRevision.value)
+        statisticsError.value = 'Product statistics are unavailable. Please retry.'
     } finally {
       isLoading.value = false
     }
@@ -200,6 +225,7 @@ export const useProductStore = defineStore('products', () => {
     productOptions,
     search,
     stats,
+    statisticsError,
     statuses,
     selectedProduct,
     addProduct,

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Resources\CustomerResource;
 use App\Models\User;
+use App\Services\CustomerService;
 use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -12,7 +13,7 @@ class CustomerController extends Controller
 {
     private function customers()
     {
-        return User::whereIn('id', DB::table('vendor_customers')->where('vendor_id', app(TenantContext::class)->id())->select('user_id'));
+        return User::select('users.*')->selectSub(DB::table('vendor_customers')->where('vendor_id', app(TenantContext::class)->id())->whereColumn('user_id', 'users.id')->select('is_blocked'), 'customer_is_blocked')->whereIn('id', DB::table('vendor_customers')->where('vendor_id', app(TenantContext::class)->id())->select('user_id'));
     }
 
     public function index(Request $request)
@@ -28,9 +29,18 @@ class CustomerController extends Controller
     public function show(User $user)
     {
         abort_unless($this->customers()->whereKey($user->id)->exists(), 404);
-        $user->load('orders.items');
+        $user = $this->customers()->whereKey($user->id)->with('orders.items')->firstOrFail();
 
         return new CustomerResource($user);
+    }
+
+    public function updateStatus(Request $request, User $user, CustomerService $service)
+    {
+        abort_unless($this->customers()->whereKey($user->id)->exists(), 404);
+        $data = $request->validate(['is_blocked' => ['required', 'boolean'], 'email' => ['prohibited'], 'name' => ['prohibited'], 'is_active' => ['prohibited']]);
+        $service->setBlocked($user->id, (bool) $data['is_blocked']);
+
+        return new CustomerResource($this->customers()->whereKey($user->id)->with('orders')->firstOrFail());
     }
 
     public function total()

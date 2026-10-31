@@ -80,6 +80,8 @@ Route::prefix('v1')->group(function () {
             Route::patch('users/{user}/status', [UserController::class, 'update_status'])->middleware('permission:edit users');
             Route::delete('users/{user}', [UserController::class, 'destroy'])->middleware('permission:delete users');
 
+            Route::patch('customers/{user}/status', [CustomerController::class, 'updateStatus'])->middleware(['permission:view customers', 'permission:edit customers']);
+
             Route::middleware('permission:view customers')->group(function () {
                 Route::get('customers/total', [CustomerController::class, 'total']);
                 Route::get('customers', [CustomerController::class, 'index']);

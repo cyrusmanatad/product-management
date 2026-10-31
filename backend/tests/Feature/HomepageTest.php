@@ -130,3 +130,20 @@ test('featured product deep links resolve product slugs only inside their public
     $this->getJson('/api/v1/stores/benta-door/catalog/products/shared-door')->assertNotFound();
     expect(app(TenantContext::class)->id())->toBeNull();
 });
+
+test('homepage prices match decimal strings in the storefront across database drivers', function (string $price) {
+    DB::table('product_variants')->where('vendor_id', $this->a->id)->where('product_id', $this->pa->id)->update(['price' => $price]);
+    $this->actingAs($this->admin, 'api');
+    $this->getJson('/api/v1/platform/vendors/benta-door/feature-candidates')
+        ->assertOk()->assertJsonPath('data.0.price', $price);
+    $this->postJson('/api/v1/platform/vendors/benta-door/featured-products', ['product_id' => $this->pa->id])->assertOk();
+    foreach (['/api/v1/homepage/featured-products', '/api/v1/platform/featured-products'] as $path) {
+        $this->getJson($path)->assertOk()->assertJsonPath('data.0.price', $price);
+    }
+    $this->getJson('/api/v1/stores/benta-door/catalog/products/shared-door')
+        ->assertOk()->assertJsonPath('data.price', $price)->assertJsonPath('data.variants.0.price', $price)
+        ->assertJsonPath('data.variants.0.sale_price', null);
+
+    DB::table('product_variants')->where('vendor_id', $this->a->id)->where('product_id', $this->pa->id)->update(['is_active' => false]);
+    $this->getJson('/api/v1/platform/featured-products')->assertOk()->assertJsonPath('data.0.price', null);
+})->with(['123.45', '123.00', '0.00', '0.01', '0.10', '99999999.99', '9999999999.99']);

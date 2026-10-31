@@ -1,0 +1,93 @@
+ Container bentador-tests-database-1 Running 
+ Container bentador-tests-database-1 Waiting 
+ Container bentador-tests-database-1 Healthy 
+ Container bentador-tests-backend-run-3f19b15ad2eb Creating 
+ Container bentador-tests-backend-run-3f19b15ad2eb Created 
+
+   PASS  Tests\Feature\AnalyticsTest
+  ✓ revenue performance includes recent orders for the current week      1.04s  
+
+   PASS  Tests\Feature\AuthTest
+  ✓ user requires email when registering                                 0.04s  
+  ✓ user can register                                                    0.05s  
+  ✓ user cannot register with existing email                             0.03s  
+  ✓ user can login                                                       0.04s  
+  ✓ user cannot login with invalid credentials                           0.04s  
+  ✓ unknown email gets the same login error                              0.04s  
+
+   PASS  Tests\Feature\CheckoutConcurrencyTest
+  ✓ concurrent PostgreSQL checkouts cannot oversell and concurrent retr… 1.24s  
+
+   PASS  Tests\Feature\HomepageTest
+  ✓ guests browse active stores with search and pagination without priv… 0.27s  
+  ✓ only platform administrators can select or remove homepage products  0.29s  
+  ✓ homepage curates public products across vendors and keeps selection… 0.29s  
+  ✓ unpublished deleted suspended and variant-ineligible products are h… 0.34s  
+  ✓ featured product deep links resolve product slugs only inside their… 0.26s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.32s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.30s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.33s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.28s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.37s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.30s  
+  ✓ homepage prices match decimal strings in the storefront across data… 0.29s  
+
+   PASS  Tests\Feature\ProductImagesTest
+  ✓ owner uploads multiple images chooses cover and catalog keeps inter… 0.29s  
+  ✓ default cover persists across uploads and deleting cover promotes a… 0.29s  
+  ✓ uploads validate files indexes and maximum product image count with… 0.29s  
+  ✓ images cannot be edited previewed or read through another product o… 0.30s  
+  ✓ guests and platform administrators cannot manage store product imag… 0.19s  
+  ✓ private draft and unavailable store files stay private while owner…  0.23s  
+  ✓ failed database save cleans up files and restores previous primary…  0.20s  
+  ✓ homepage shows the selected cover and the database prevents duplica… 0.23s  
+
+   PASS  Tests\Feature\ProductTest
+  ✓ create product stores color and size variants with their prices      0.11s  
+  ✓ editing a product updates that product and leaves the other product… 0.19s  
+  ✓ deleting a product removes that product and leaves the other produc… 0.17s  
+
+   PASS  Tests\Feature\ProfileTest
+  ✓ authenticated user can view profile                                  0.05s  
+  ✓ authenticated user can update profile                                0.04s  
+  ✓ user can update password with valid current password                 0.04s  
+  ✓ user cannot update password with invalid current password            0.03s  
+
+   PASS  Tests\Feature\SeederTest
+  ✓ category seeds are owned by the selected vendor and can be repeated  0.07s  
+  ✓ full demo seeds create vendor owned data and reset required staff a… 1.17s  
+  ✓ failed demo seeding rolls back records and clears vendor context     0.16s  
+
+   PASS  Tests\Feature\StorefrontTest
+  ✓ guests can list published products and not drafts                    0.08s  
+  ✓ a customer can check out without the staff create orders permission  0.12s  
+  ✓ a guest cannot check out                                             0.03s  
+
+   PASS  Tests\Feature\TenancyTest
+  ✓ public and staff catalogs isolate vendors including guessed product… 0.32s  
+  ✓ checkout rejects foreign variants duplicates and wrong currency      0.27s  
+  ✓ checkout is idempotent and uses exact server prices                  0.28s  
+  ✓ shared customers see only their own history in each store and staff… 0.34s  
+  ✓ staff URLs resolve store slugs and reject database IDs and unknown…  0.28s  
+  ✓ platform vendor status URLs use slugs including suspended stores     0.29s  
+  ✓ permissions and revocation are evaluated per membership              0.30s  
+  ✓ vendors cannot invite platform roles or edit protected owner roles   0.31s  
+  ✓ suspension and disabled accounts deny access immediately             0.24s  
+  ✓ cancellation restores inventory once and archives preserve orders    0.36s  
+  ✓ manual payments are audited scoped reversible and idempotent         0.37s  
+  ✓ invitations are expiring single use and cannot reset an existing ac… 0.28s  
+  ✓ platform administrators create vendors and owner invitations withou… 0.34s  
+  ✓ database constraints reject cross-vendor categories and roles        0.26s  
+  ✓ order lists reports statistics and category writes remain vendor sc… 0.63s  
+  ✓ default password accounts require an email reset and old tokens are… 0.30s  
+  ✓ background vendor context is cleared even if the job fails           0.24s  
+
+   PASS  Tests\Feature\UserControllerTest
+  ✓ me endpoint returns authenticated user                               0.06s  
+
+   PASS  Tests\Feature\VendorMigrationTest
+  ✓ legacy migration preserves records totals attribution roles and def… 0.82s  
+
+  Tests:    60 passed (616 assertions)
+  Duration: 16.89s
+

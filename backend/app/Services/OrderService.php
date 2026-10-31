@@ -27,6 +27,7 @@ class OrderService
                     return $existing->load('items');
                 }
             }
+            abort_if(DB::table('vendor_customers')->where('vendor_id', app(TenantContext::class)->id())->where('user_id', $data->user_id)->where('is_blocked', true)->exists(), 403, 'This customer is blocked from placing new orders at this store.');
             $ids = $data->items->pluck('variant_id');
             if ($ids->unique()->count() !== $ids->count()) {
                 throw ValidationException::withMessages(['items' => 'Select each variant only once.']);

@@ -35,10 +35,16 @@ Monitor vendor-access denials, checkout failures, failed jobs, negative inventor
 
 ```bash
 # Isolated PHP 8.5 + PostgreSQL 16; never uses production Compose.
+# Match the host user so Composer and test caches never become root-owned.
+export TEST_UID=$(id -u) TEST_GID=$(id -g)
 docker compose -f docker-compose.test.yml build backend
-docker compose -f docker-compose.test.yml run --rm backend composer install
-docker compose -f docker-compose.test.yml run --rm backend php artisan test
+docker compose -f docker-compose.test.yml run --rm backend composer install --no-interaction --prefer-dist
+docker compose -f docker-compose.test.yml run --rm backend composer test -- --fail-on-skipped
+# Same regression suite on SQLite; only the PostgreSQL row-lock test may skip.
+docker compose -f docker-compose.test.yml run --rm -e DB_CONNECTION=sqlite -e DB_DATABASE=:memory: backend composer test
 docker compose -f docker-compose.test.yml run --rm backend vendor/bin/pint --test
+# Stop only the isolated test services when finished.
+docker compose -f docker-compose.test.yml down
 
 cd bentador
 npm ci
@@ -51,3 +57,35 @@ npm run test:e2e
 ```
 
 Backend tests cover tenant isolation, real PostgreSQL concurrent stock deduction/idempotency, single-use invitations, revocation, manual payment auditing, and legacy migration preservation. Browser tests exercise independent carts, checkout payloads, vendor switching, and customer history using controlled API responses; backend integration tests verify the real authorization boundary. SQLite can run non-concurrency tests, but is not a substitute for the PostgreSQL checks.
+
+`cd backend && composer test` uses SQLite by default. Exported `DB_CONNECTION` and
+`DB_DATABASE` select PostgreSQL, as in the isolated Compose service and CI. Use a
+dedicated disposable test database: the suite runs migrations and resets tables.
+The test bootstrap creates a private, random runtime directory under the system
+temporary directory for storage, logs, compiled views, and Laravel bootstrap caches;
+checkout workers inherit it, and the runner removes it on normal shutdown. A killed
+runner may leave its `bentador-tests-*` temporary directory for later cleanup.
+PHPUnit/Pest result caches live in ignored `backend/.phpunit.cache`, outside vendor
+dependencies. Compose keeps dependencies in its own `test_vendor` volume, initialized
+for the build's test UID/GID, and gives setup commands private storage/cache tmpfs mounts.
+Use the same UID/GID for building and running this setup. Install dependencies again
+after lockfile changes; the volume does not use or alter the host's `backend/vendor`.
+No application storage ownership changes or world-writable permissions are needed.
+CI runs both databases and rejects any skipped PostgreSQL test.
+
+## Customer relationships and blocking
+
+PM-002 policy agreed on 2026-10-31: account identity, staff membership, and vendor
+customer status are separate. `vendor_customers.is_blocked` defaults to false for
+existing and new relationships. Apply the new customer-status migration before
+using the new API/frontend. Blocking changes only that vendor relationship, with
+`view customers` plus `edit customers` authorization; global identities, other
+vendors, staff membership, and order history stay intact. New-order creation and
+status changes acquire the buyer lock in the same order to prevent checkout races.
+Existing idempotent order retries and existing-order operations remain available.
+
+Customer onboarding in PM-006 will use recipient-accepted, one-use, seven-day
+customer invitations, separate from staff invitations and roles. Staff may invite
+with `create customers` plus `view customers`, but cannot set global identity fields
+or credentials. Acceptance must never remove an existing block. See the agreed
+[API customer policy](API.md#customer-relationship-policy-pm-002-agreed-2026-10-31).

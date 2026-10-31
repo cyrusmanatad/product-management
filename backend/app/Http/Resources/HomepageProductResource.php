@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Enums\ProductStatus;
+use Brick\Math\BigDecimal;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -14,7 +15,7 @@ class HomepageProductResource extends JsonResource
             'id' => (int) $this->id,
             'title' => $this->title,
             'slug' => $this->slug,
-            'price' => $this->price,
+            'price' => $this->price === null ? null : (string) BigDecimal::of((string) $this->price)->toScale(2),
             'primary_image_url' => $this->image_id ? ($this->legacy_image_url ?? '/api/v1/stores/'.$this->store_slug.'/images/'.$this->image_id) : null,
             'currency' => $this->currency,
             'store' => ['name' => $this->store_name, 'slug' => $this->store_slug],

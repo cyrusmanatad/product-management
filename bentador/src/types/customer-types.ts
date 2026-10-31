@@ -7,11 +7,12 @@ export interface Customer {
   completed_orders: number
   spent: string
   lv_raw: number
-  last_login_at: string
-  last_login_raw: string
+  last_login_at: string | null
+  last_login_raw: string | null
   status: string
   color: string
-  is_active: number
+  is_active: boolean
+  is_blocked: boolean
   type: string
 }
 

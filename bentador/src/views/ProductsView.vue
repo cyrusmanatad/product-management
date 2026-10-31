@@ -128,6 +128,14 @@ onMounted(async () => {
       <template #description> Manage your inventory of this store’s items </template>
     </AppHeader>
 
+    <p
+      v-if="productStore.statisticsError"
+      role="alert"
+      class="mb-4 text-sm text-red-600 dark:text-red-400"
+    >
+      {{ productStore.statisticsError }}
+      <button type="button" class="underline" @click="productStore.fetchStatistics()">Retry</button>
+    </p>
     <StatGrid :stats="productStore.stats" />
     <ProductTable />
 

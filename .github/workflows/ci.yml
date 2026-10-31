@@ -28,8 +28,12 @@ jobs:
         run: python3 scripts/test_deploy_workflow.py
 
   backend:
-    name: Backend CI
+    name: Backend CI (${{ matrix.database }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [pgsql, sqlite]
 
     services:
       postgres:
@@ -43,9 +47,9 @@ jobs:
           --health-cmd "pg_isready -U test -d bentador_test"
           --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      DB_CONNECTION: pgsql
+      DB_CONNECTION: ${{ matrix.database }}
       DB_HOST: 127.0.0.1
-      DB_DATABASE: bentador_test
+      DB_DATABASE: ${{ matrix.database == 'pgsql' && 'bentador_test' || ':memory:' }}
       DB_USERNAME: test
       DB_PASSWORD: test
     defaults:
@@ -78,7 +82,7 @@ jobs:
         run: vendor/bin/pint --test
 
       - name: Test
-        run: php artisan test
+        run: composer test -- ${{ matrix.database == 'pgsql' && '--fail-on-skipped' || '' }}
 
   frontend:
     name: Frontend CI

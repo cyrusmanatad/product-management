@@ -39,7 +39,8 @@ class CustomerResource extends JsonResource
             // Status
             'status' => $this->resolveStatus(),
             'color' => $this->resolveStatusColor(),
-            'is_active' => $this->is_active,
+            'is_active' => ! (bool) $this->customer_is_blocked,
+            'is_blocked' => (bool) $this->customer_is_blocked,
 
             // Customer type
             'type' => $this->resolveCustomerType($totalOrders),
@@ -49,7 +50,7 @@ class CustomerResource extends JsonResource
 
     private function resolveStatus(): string
     {
-        return $this->is_active ? 'Active' : 'Inactive';
+        return $this->customer_is_blocked ? 'Blocked' : 'Active';
     }
 
     private function resolveStatusColor(): string
@@ -57,7 +58,7 @@ class CustomerResource extends JsonResource
         return match ($this->resolveStatus()) {
             'Active' => 'green',
             'Idle' => 'yellow',
-            'Inactive' => 'red',
+            'Blocked' => 'red',
             default => 'gray',
         };
     }
