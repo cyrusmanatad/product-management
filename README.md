@@ -8,6 +8,7 @@ The app uses Docker and PostgreSQL, with independent vendor storefronts and vend
 
 | Document | Description |
 |----------|-------------|
+| [Sprint Plan](./planning/SPRINT_PLAN.md) | Sprint goals, implementation checklists, progress, and enhancement backlog |
 | [TENANCY.md](./TENANCY.md) | Vendor ownership, migration, rollout, and verification |
 | [AGENT.md](./AGENT.md) | Guidelines for AI agents and contributors |
 | [DESIGN.md](./DESIGN.md) | UI/UX and component standards |
