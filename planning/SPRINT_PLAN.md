@@ -472,7 +472,7 @@ store statistics was met. No Sprint 1 work remains open. Validation: PostgreSQL
 65 passed with no skips; SQLite 64 passed with one expected PostgreSQL concurrency
 skip. Frontend build, unit tests, Chromium suite, Pint, lint, and whitespace checks
 passed; responsive evidence is in [Sprint 1 validation](evidence/sprint1/README.md).
-The final review found no actionable regressions. Changes committed as `COMMIT_SHA`
+The final review found no actionable regressions. Changes committed as `a229d0b74bf364ca805feaf9b65a9234d508f961`
 (`feat: complete sprint 1 customer and stats workflows`). No PR was created.
 
 Retrospective: Separate database-driver suites and isolated test runtime exposed

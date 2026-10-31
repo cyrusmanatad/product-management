@@ -72,6 +72,10 @@ npm run lint
 
 ---
 
+## Branching
+
+- Make every project update and code change on a dedicated non-main branch. Never commit directly on main. Use the repository review and merge process for integration.
+
 ## Engineering standards
 
 - **Surgical changes:** Modify only what the task requires. Do not refactor unrelated files.
